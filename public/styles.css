@@ -24,8 +24,14 @@ a { color: inherit; text-decoration: none; }
 .site-header { height: 74px; border-bottom: var(--line) solid var(--border); display: flex; align-items: center; padding: 0 var(--page-gutter); gap: 32px; background: var(--surface); }
 .site-nav { display: flex; align-items: center; gap: 24px; font-size: 14px; white-space: nowrap; }
 .site-nav a[aria-current="page"] { color: var(--accent); font-weight: 700; }
-.cart-link { margin-left: auto; }
+.cart-link { }
 .cart-count { color: var(--accent); font-weight: 700; }
+.search-form { display: flex; flex: 1; max-width: 600px; height: 38px; border: var(--line) solid var(--accent); margin-left: 8px; }
+.search-form input { flex: 1; min-width: 0; border: 0; outline: 0; padding: 0 14px; color: var(--text-primary); }
+.search-form button { width: 42px; border: 0; background: var(--surface); color: var(--accent); font-size: 22px; cursor: pointer; }
+.language-tabs { display: flex; gap: 4px; margin-left: auto; white-space: nowrap; }
+.language-tabs button { border: 0; background: transparent; color: var(--text-secondary); padding: 6px 5px; cursor: pointer; }
+.language-tabs button.active { color: var(--accent); font-weight: 700; }
 
 .page { max-width: 1150px; margin: 0 auto; padding: 32px var(--page-gutter) 72px; }
 .page-heading { margin: 0 0 24px; font-size: 28px; line-height: 1.2; font-weight: 700; }
@@ -36,8 +42,9 @@ a { color: inherit; text-decoration: none; }
 .listing-meta { border-bottom: var(--line) solid var(--border); padding: 0 0 12px; color: var(--text-secondary); margin-bottom: 24px; }
 .product-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 32px 24px; }
 .product-card { min-width: 0; }
-.product-image-frame { width: 100%; aspect-ratio: 1; background: var(--surface); display: flex; align-items: center; justify-content: center; margin-bottom: 12px; }
+.product-image-frame { width: 100%; aspect-ratio: 1; background: var(--surface); display: flex; align-items: center; justify-content: center; margin-bottom: 12px; position: relative; }
 .product-image-frame img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.hit-badge { position: absolute; left: 8px; top: 8px; z-index: 1; padding: 3px 7px; background: var(--sale); color: #fff; font-size: 11px; font-weight: 700; letter-spacing: .02em; }
 .product-category { color: var(--text-secondary); font-size: 12px; margin-bottom: 4px; }
 .product-name { min-height: 42px; font-size: 14px; }
 .product-price { color: var(--sale); font-size: 20px; font-weight: 700; margin-top: 4px; }

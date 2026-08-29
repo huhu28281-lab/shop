@@ -246,3 +246,16 @@ screenshots and are the implementation tokens for this phase.
 Exact component offsets and gaps are screen-specific measurements from the
 native screenshots; values not listed above remain UNKNOWN and must not be
 invented as a new design token.
+
+## User-requested Extensions
+
+- Main product-list screen has a long, bordered search field in the upper
+  header. Search covers the existing product name, description, and category
+  data; no new product records are introduced.
+- The upper-right header contains three text tabs: `한국어`, `中文`, and
+  `English`. The selected tab uses the measured accent color; translations are
+  limited to existing UI and product metadata.
+- `HIT` is shown as a compact red label on the first product in each category
+  according to the product table's listing order: IDs 1, 3, 5, and 7. This is
+  a deterministic display rule requested by the user, not an invented sales
+  metric.

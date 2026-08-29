@@ -76,16 +76,16 @@ async function jsonBody(request: Request): Promise<Record<string, unknown> | nul
   }
 }
 
-async function listProducts(env: Env, category: string | null): Promise<Response> {
+async function listProducts(env: Env, category: string | null, queryText: string | null): Promise<Response> {
   if (category && !CATEGORIES.includes(category as typeof CATEGORIES[number])) {
     return errorResponse('알 수 없는 분류입니다.', 400);
   }
-  const query = category
-    ? 'SELECT id, name, price, description, category, image_url FROM products WHERE is_active = 1 AND category = ? ORDER BY id'
-    : 'SELECT id, name, price, description, category, image_url FROM products WHERE is_active = 1 ORDER BY id';
-  const result = category
-    ? await env.DB.prepare(query).bind(category).all<Product>()
-    : await env.DB.prepare(query).all<Product>();
+  const conditions = ['is_active = 1'];
+  const values: string[] = [];
+  if (category) { conditions.push('category = ?'); values.push(category); }
+  if (queryText?.trim()) { conditions.push('(name LIKE ? OR description LIKE ? OR category LIKE ?)'); const term = `%${queryText.trim()}%`; values.push(term, term, term); }
+  const query = `SELECT id, name, price, description, category, image_url FROM products WHERE ${conditions.join(' AND ')} ORDER BY id`;
+  const result = await env.DB.prepare(query).bind(...values).all<Product>();
   return responseJson({ products: result.results });
 }
 
@@ -188,7 +188,7 @@ async function api(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
   const parts = url.pathname.split('/').filter(Boolean);
   if (parts[1] === 'products') {
-    if (parts.length === 2 && request.method === 'GET') return listProducts(env, url.searchParams.get('category'));
+    if (parts.length === 2 && request.method === 'GET') return listProducts(env, url.searchParams.get('category'), url.searchParams.get('q'));
     if (parts.length === 3 && request.method === 'GET' && /^\d+$/.test(parts[2])) return productDetail(env, Number(parts[2]));
   }
   if (parts[1] === 'cart') {
