@@ -259,3 +259,7 @@ invented as a new design token.
   according to the product table's listing order: IDs 1, 3, 5, and 7. This is
   a deterministic display rule requested by the user, not an invented sales
   metric.
+- The `HIT` label uses a short brightness/scale sparkle animation and a small
+  star mark, as explicitly requested by the user.
+- The header cart link displays the sum of quantities currently in the
+  server-backed guest cart; it is not the number of distinct product rows.

@@ -25,7 +25,7 @@ a { color: inherit; text-decoration: none; }
 .site-nav { display: flex; align-items: center; gap: 24px; font-size: 14px; white-space: nowrap; }
 .site-nav a[aria-current="page"] { color: var(--accent); font-weight: 700; }
 .cart-link { }
-.cart-count { color: var(--accent); font-weight: 700; }
+.cart-count { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px; background: var(--accent); color: #fff; font-size: 11px; font-weight: 700; vertical-align: middle; }
 .search-form { display: flex; flex: 1; max-width: 600px; height: 38px; border: var(--line) solid var(--accent); margin-left: 8px; }
 .search-form input { flex: 1; min-width: 0; border: 0; outline: 0; padding: 0 14px; color: var(--text-primary); }
 .search-form button { width: 42px; border: 0; background: var(--surface); color: var(--accent); font-size: 22px; cursor: pointer; }
@@ -44,7 +44,10 @@ a { color: inherit; text-decoration: none; }
 .product-card { min-width: 0; }
 .product-image-frame { width: 100%; aspect-ratio: 1; background: var(--surface); display: flex; align-items: center; justify-content: center; margin-bottom: 12px; position: relative; }
 .product-image-frame img { display: block; width: 100%; height: 100%; object-fit: contain; }
-.hit-badge { position: absolute; left: 8px; top: 8px; z-index: 1; padding: 3px 7px; background: var(--sale); color: #fff; font-size: 11px; font-weight: 700; letter-spacing: .02em; }
+.hit-badge { position: absolute; left: 8px; top: 8px; z-index: 1; padding: 3px 7px; background: var(--sale); color: #fff; font-size: 11px; font-weight: 700; letter-spacing: .02em; animation: hit-sparkle 1.2s ease-in-out infinite; }
+.hit-badge::after { content: '✦'; display: inline-block; margin-left: 4px; animation: hit-star 1.2s ease-in-out infinite; }
+@keyframes hit-sparkle { 0%, 100% { filter: brightness(1); transform: scale(1); } 50% { filter: brightness(1.35); transform: scale(1.05); } }
+@keyframes hit-star { 0%, 100% { opacity: .45; transform: rotate(0deg) scale(.8); } 50% { opacity: 1; transform: rotate(18deg) scale(1.15); } }
 .product-category { color: var(--text-secondary); font-size: 12px; margin-bottom: 4px; }
 .product-name { min-height: 42px; font-size: 14px; }
 .product-price { color: var(--sale); font-size: 20px; font-weight: 700; margin-top: 4px; }

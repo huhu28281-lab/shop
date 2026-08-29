@@ -5,6 +5,7 @@ type Order = { id: string; total: number; status: string; created_at?: string; i
 
 const app = document.querySelector<HTMLDivElement>('#app')!;
 const categories = ['전체', '잡화', '뷰티', '신발', '식품'];
+let cartQuantity = 0;
 type Language = 'ko' | 'zh' | 'en';
 const language = (): Language => (localStorage.getItem('shop-language') as Language) || 'ko';
 const ui: Record<Language, Record<string, string>> = {
@@ -49,7 +50,16 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 function shell(active: string, content: string, showSearch = false): string {
   const lang = language(); const text = ui[lang];
   const search = showSearch ? `<form class="search-form" id="search-form" role="search"><input name="q" value="${escapeHtml(new URLSearchParams(location.search).get('q') ?? '')}" placeholder="${text.search}" aria-label="${text.search}" /><button type="submit" aria-label="${text.search}">⌕</button></form>` : '';
-  return `<header class="site-header"><nav class="site-nav" aria-label="${text.products}"><a href="/" data-route ${active === 'home' ? 'aria-current="page"' : ''}>${text.products}</a><a class="cart-link" href="/cart" data-route ${active === 'cart' ? 'aria-current="page"' : ''}>${text.cart}</a></nav>${search}${languageTabs(lang)}</header>${content}`;
+  return `<header class="site-header"><nav class="site-nav" aria-label="${text.products}"><a href="/" data-route ${active === 'home' ? 'aria-current="page"' : ''}>${text.products}</a><a class="cart-link" href="/cart" data-route ${active === 'cart' ? 'aria-current="page"' : ''}>${text.cart} <span class="cart-count" id="cart-count" aria-label="${cartQuantity}">${cartQuantity}</span></a></nav>${search}${languageTabs(lang)}</header>${content}`;
+}
+
+async function updateCartCount(): Promise<void> {
+  try {
+    const cart = await request<Cart>('/api/cart');
+    cartQuantity = cart.items.reduce((sum, item) => sum + item.qty, 0);
+    const counter = document.querySelector('#cart-count');
+    if (counter) { counter.textContent = String(cartQuantity); counter.setAttribute('aria-label', String(cartQuantity)); }
+  } catch { /* The page remains usable if the count request is unavailable. */ }
 }
 
 function productCard(product: Product, lang: Language, hit: boolean): string {
@@ -84,7 +94,7 @@ async function renderProduct(id: number): Promise<void> {
   input.addEventListener('change', () => setQty(Number(input.value) || 1));
   document.querySelector<HTMLButtonElement>('#add-to-cart')?.addEventListener('click', async () => {
     const notice = document.querySelector<HTMLParagraphElement>('#detail-notice')!;
-    try { await request('/api/cart', { method: 'POST', body: JSON.stringify({ productId: id, qty }) }); notice.textContent = text.added; } catch (error) { notice.textContent = (error as Error).message; }
+    try { await request('/api/cart', { method: 'POST', body: JSON.stringify({ productId: id, qty }) }); notice.textContent = text.added; await updateCartCount(); } catch (error) { notice.textContent = (error as Error).message; }
   });
 }
 
@@ -95,6 +105,7 @@ function cartItem(item: CartItem, lang: Language): string {
 
 async function renderCart(): Promise<void> {
   const cart = await request<Cart>('/api/cart');
+  cartQuantity = cart.items.reduce((sum, item) => sum + item.qty, 0);
   const lang = language(); const text = ui[lang];
   app.innerHTML = shell('cart', `<main class="cart-page"><div class="cart-layout"><section class="cart-panel"><div class="cart-title-row"><h1>${text.cart}</h1><div class="stepper"><strong>${text.cart}</strong> &gt; ${text.order}</div></div>${cart.items.length ? cart.items.map((item) => cartItem(item, lang)).join('') : `<div class="cart-empty">${text.empty}</div>`}</section><aside class="summary-panel"><h2>${text.summary}</h2><div class="summary-row"><span>${text.subtotal}</span><span>${won(cart.total)}</span></div><div class="summary-total">${won(cart.total)}</div><button class="primary-button" id="order-button" type="button" ${cart.items.length ? '' : 'disabled'}>${text.order}</button><p id="cart-notice" class="notice" role="status"></p></aside></div></main>`);
   document.querySelectorAll<HTMLButtonElement>('[data-action="delete"]').forEach((button) => button.addEventListener('click', async () => { await request(`/api/cart/${button.dataset.id}`, { method: 'DELETE' }); await renderCart(); }));
@@ -115,12 +126,12 @@ function go(path: string): void { history.pushState({}, '', path); void render()
 async function render(): Promise<void> {
   try {
     const path = location.pathname;
-    if (path === '/' || path === '') return await renderHome();
+    if (path === '/' || path === '') { await renderHome(); await updateCartCount(); return; }
     const productMatch = path.match(/^\/products\/(\d+)$/);
-    if (productMatch) return await renderProduct(Number(productMatch[1]));
+    if (productMatch) { await renderProduct(Number(productMatch[1])); await updateCartCount(); return; }
     if (path === '/cart') return await renderCart();
     const orderMatch = path.match(/^\/orders\/([^/]+)$/);
-    if (orderMatch) return await renderOrder(orderMatch[1]);
+    if (orderMatch) { await renderOrder(orderMatch[1]); await updateCartCount(); return; }
     app.innerHTML = shell('', '<main class="page"><p class="error">페이지를 찾을 수 없습니다.</p></main>');
   } catch (error) { app.innerHTML = shell('', `<main class="page"><p class="error">${escapeHtml((error as Error).message)}</p></main>`); }
 }
