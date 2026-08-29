@@ -1,0 +1,19 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "shop",
+  "main": "src/worker.ts",
+  "compatibility_date": "2026-08-29",
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "shop-db",
+      "database_id": "d7cca99f-02d7-43d9-9093-10f2283dc0f4",
+      "migrations_dir": "migrations"
+    }
+  ]
+}
