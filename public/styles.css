@@ -109,6 +109,12 @@ a { color: inherit; text-decoration: none; }
 .summary-total { border-top: var(--line) solid var(--border); margin-top: 12px; padding-top: 20px; font-size: 24px; font-weight: 700; text-align: right; }
 .summary-panel .primary-button { margin-top: 24px; }
 .primary-button:disabled { border-color: var(--disabled); background: var(--disabled); color: var(--disabled-text); cursor: not-allowed; }
+.modal-backdrop { position: fixed; inset: 0; z-index: 20; display: flex; align-items: center; justify-content: center; background: rgb(35 43 53 / 35%); }
+.choice-modal { width: 380px; padding: 28px; border: var(--line) solid var(--border); background: var(--surface); }
+.choice-modal h2 { margin: 0 0 10px; font-size: 20px; }
+.choice-modal p { margin: 0 0 24px; color: var(--text-secondary); }
+.choice-modal-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.choice-modal-actions .primary-button, .choice-modal-actions .outline-button { min-height: 44px; }
 
 .order-page { max-width: 900px; margin: 0 auto; padding: 56px var(--page-gutter) 72px; }
 .order-page h1 { font-size: 36px; margin: 0 0 24px; }

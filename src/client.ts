@@ -45,6 +45,18 @@ function descriptionMarkup(description: string, className: string): string {
   return description ? `<div class="${className}">${escapeHtml(description)}</div>` : '';
 }
 
+function showCartChoice(): void {
+  document.querySelector('#cart-choice-modal')?.remove();
+  const modal = document.createElement('div');
+  modal.id = 'cart-choice-modal';
+  modal.className = 'modal-backdrop';
+  modal.innerHTML = '<div class="choice-modal" role="dialog" aria-modal="true" aria-labelledby="cart-choice-title"><h2 id="cart-choice-title">장바구니에 담았습니다</h2><p>주문을 계속 진행하시겠어요?</p><div class="choice-modal-actions"><button type="button" class="outline-button" data-choice="continue">계속 쇼핑하기</button><button type="button" class="primary-button" data-choice="order">주문하러 가기</button></div></div>';
+  document.body.appendChild(modal);
+  modal.querySelector('[data-choice="continue"]')?.addEventListener('click', () => modal.remove());
+  modal.querySelector('[data-choice="order"]')?.addEventListener('click', () => { modal.remove(); go('/cart'); });
+  modal.addEventListener('click', (event) => { if (event.target === modal) modal.remove(); });
+}
+
 function languageTabs(lang: Language): string {
   return `<div class="language-tabs" role="tablist" aria-label="Language"><button type="button" data-language="ko" class="${lang === 'ko' ? 'active' : ''}">한국어</button><button type="button" data-language="zh" class="${lang === 'zh' ? 'active' : ''}">中文</button><button type="button" data-language="en" class="${lang === 'en' ? 'active' : ''}">English</button></div>`;
 }
@@ -151,7 +163,7 @@ async function renderProduct(id: number): Promise<void> {
   input.addEventListener('change', () => setQty(Number(input.value) || 1));
   document.querySelector<HTMLButtonElement>('#add-to-cart')?.addEventListener('click', async () => {
     const notice = document.querySelector<HTMLParagraphElement>('#detail-notice')!;
-    try { await request('/api/cart', { method: 'POST', body: JSON.stringify({ productId: id, qty }) }); notice.textContent = text.added; await updateCartCount(); } catch (error) { notice.textContent = (error as Error).message; }
+    try { await request('/api/cart', { method: 'POST', body: JSON.stringify({ productId: id, qty }) }); notice.textContent = text.added; await updateCartCount(); showCartChoice(); } catch (error) { notice.textContent = (error as Error).message; }
   });
 }
 
