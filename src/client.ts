@@ -33,7 +33,14 @@ const won = (value: number) => `${new Intl.NumberFormat('ko-KR').format(value)}�
 const escapeHtml = (value: string) => value.replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]!));
 
 function localized(product: Product, lang: Language): { name: string; description: string; category: string } {
-  return productTranslations[product.id]?.[lang] ?? { name: product.name, description: product.description, category: product.category };
+  const copy = productTranslations[product.id]?.[lang] ?? { name: product.name, description: product.description, category: product.category };
+  // 판매순위 원본의 판매처·리뷰 메타데이터는 상품 하단 설명으로 노출하지 않는다.
+  if (copy.description.startsWith('오늘의 판매순위')) return { ...copy, description: '' };
+  return copy;
+}
+
+function descriptionMarkup(description: string, className: string): string {
+  return description ? `<div class="${className}">${escapeHtml(description)}</div>` : '';
 }
 
 function languageTabs(lang: Language): string {
@@ -64,7 +71,7 @@ async function updateCartCount(): Promise<void> {
 
 function productCard(product: Product, lang: Language, hit: boolean): string {
   const copy = localized(product, lang);
-  return `<article class="product-card"><a href="/products/${product.id}" data-route><div class="product-image-frame">${hit ? '<span class="hit-badge">HIT</span>' : ''}<img src="${product.image_url}" alt="${escapeHtml(copy.name)}" /></div><div class="product-category">${escapeHtml(copy.category)}</div><div class="product-name">${escapeHtml(copy.name)}</div><div class="product-price">${won(product.price)}</div><div class="product-description">${escapeHtml(copy.description)}</div></a></article>`;
+  return `<article class="product-card"><a href="/products/${product.id}" data-route><div class="product-image-frame">${hit ? '<span class="hit-badge">HIT</span>' : ''}<img src="${product.image_url}" alt="${escapeHtml(copy.name)}" /></div><div class="product-category">${escapeHtml(copy.category)}</div><div class="product-name">${escapeHtml(copy.name)}</div><div class="product-price">${won(product.price)}</div>${descriptionMarkup(copy.description, 'product-description')}</a></article>`;
 }
 
 async function renderHome(category = new URLSearchParams(location.search).get('category') ?? ''): Promise<void> {
@@ -86,7 +93,7 @@ async function renderProduct(id: number): Promise<void> {
   const data = await request<{ product: Product }>(`/api/products/${id}`);
   const lang = language(); const text = ui[lang]; const copy = localized(data.product, lang);
   let qty = 1;
-  app.innerHTML = shell('', `<main class="page"><div class="breadcrumb"><a href="/" data-route>${text.products}</a> &gt; ${escapeHtml(copy.category)}</div><div class="detail-layout"><div class="detail-image"><img src="${data.product.image_url}" alt="${escapeHtml(copy.name)}" /></div><section class="detail-info"><div class="detail-category">${escapeHtml(copy.category)}</div><h1 class="detail-title">${escapeHtml(copy.name)}</h1><p class="detail-description">${escapeHtml(copy.description)}</p><div class="detail-price">${won(data.product.price)}</div><div class="quantity-row"><span>${text.quantity}</span><div class="quantity-control"><button type="button" data-qty="minus" aria-label="${text.quantity}">−</button><input id="detail-qty" type="number" min="1" max="99" value="1" aria-label="${text.quantity}" /><button type="button" data-qty="plus" aria-label="${text.quantity}">+</button></div></div><button class="primary-button" id="add-to-cart" type="button">${text.add}</button><p id="detail-notice" class="notice" role="status"></p></section></div></main>`);
+  app.innerHTML = shell('', `<main class="page"><div class="breadcrumb"><a href="/" data-route>${text.products}</a> &gt; ${escapeHtml(copy.category)}</div><div class="detail-layout"><div class="detail-image"><img src="${data.product.image_url}" alt="${escapeHtml(copy.name)}" /></div><section class="detail-info"><div class="detail-category">${escapeHtml(copy.category)}</div><h1 class="detail-title">${escapeHtml(copy.name)}</h1>${descriptionMarkup(copy.description, 'detail-description')}<div class="detail-price">${won(data.product.price)}</div><div class="quantity-row"><span>${text.quantity}</span><div class="quantity-control"><button type="button" data-qty="minus" aria-label="${text.quantity}">−</button><input id="detail-qty" type="number" min="1" max="99" value="1" aria-label="${text.quantity}" /><button type="button" data-qty="plus" aria-label="${text.quantity}">+</button></div></div><button class="primary-button" id="add-to-cart" type="button">${text.add}</button><p id="detail-notice" class="notice" role="status"></p></section></div></main>`);
   const input = document.querySelector<HTMLInputElement>('#detail-qty')!;
   const setQty = (value: number) => { qty = Math.max(1, Math.min(99, value)); input.value = String(qty); };
   document.querySelector('[data-qty="minus"]')?.addEventListener('click', () => setQty(qty - 1));
@@ -100,7 +107,7 @@ async function renderProduct(id: number): Promise<void> {
 
 function cartItem(item: CartItem, lang: Language): string {
   const copy = localized(item, lang); const text = ui[lang];
-  return `<article class="cart-item"><img class="cart-item-image" src="${item.image_url}" alt="${escapeHtml(copy.name)}" /><div><h2 class="cart-item-name">${escapeHtml(copy.name)}</h2><div class="cart-item-description">${escapeHtml(copy.description)}</div><div class="quantity-control"><button type="button" data-action="decrease" data-id="${item.id}" aria-label="${text.quantity}">−</button><input type="number" min="1" max="99" value="${item.qty}" data-action="quantity" data-id="${item.id}" aria-label="${escapeHtml(copy.name)} ${text.quantity}" /><button type="button" data-action="increase" data-id="${item.id}" aria-label="${text.quantity}">+</button></div></div><div class="cart-item-actions"><button class="delete-button" type="button" data-action="delete" data-id="${item.id}">${lang === 'ko' ? '삭제' : lang === 'zh' ? '删除' : 'Remove'}</button><div class="cart-item-price">${won(item.line_total)}</div></div></article>`;
+  return `<article class="cart-item"><img class="cart-item-image" src="${item.image_url}" alt="${escapeHtml(copy.name)}" /><div><h2 class="cart-item-name">${escapeHtml(copy.name)}</h2>${descriptionMarkup(copy.description, 'cart-item-description')}<div class="quantity-control"><button type="button" data-action="decrease" data-id="${item.id}" aria-label="${text.quantity}">−</button><input type="number" min="1" max="99" value="${item.qty}" data-action="quantity" data-id="${item.id}" aria-label="${escapeHtml(copy.name)} ${text.quantity}" /><button type="button" data-action="increase" data-id="${item.id}" aria-label="${text.quantity}">+</button></div></div><div class="cart-item-actions"><button class="delete-button" type="button" data-action="delete" data-id="${item.id}">${lang === 'ko' ? '삭제' : lang === 'zh' ? '删除' : 'Remove'}</button><div class="cart-item-price">${won(item.line_total)}</div></div></article>`;
 }
 
 async function renderCart(): Promise<void> {
