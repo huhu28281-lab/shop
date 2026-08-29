@@ -143,6 +143,18 @@ async function englishProductIntro(env: Env, request: Request, id: number): Prom
   } catch { return errorResponse('English introduction was unavailable.', 502); }
 }
 
+async function chat(env: Env, request: Request): Promise<Response> {
+  if (!sameOrigin(request)) return errorResponse('Invalid request origin.', 403);
+  if (!env.AI) return errorResponse('Chat is not configured.', 503);
+  const body = await jsonBody(request); const message = typeof body?.message === 'string' ? body.message.trim() : '';
+  if (!message || message.length > 1000) return errorResponse('메시지는 1,000자 이내로 입력해 주세요.', 400);
+  try {
+    const result = await env.AI.run('@cf/meta/llama-3.1-8b-instruct-fast', { messages: [{ role: 'system', content: 'You are a concise, helpful shopping assistant. Answer in Korean unless the user asks for another language. Do not claim unavailable store policies, inventory, shipping tracking, or payment facts.' }, { role: 'user', content: message }] }) as { response?: string };
+    const answer = result?.response?.trim();
+    return answer ? responseJson({ answer }) : errorResponse('답변을 만들지 못했습니다.', 502);
+  } catch { return errorResponse('잠시 후 다시 시도해 주세요.', 502); }
+}
+
 async function addressSearch(request: Request): Promise<Response> {
   const query = new URL(request.url).searchParams.get('q')?.trim() ?? '';
   if (query.length < 2 || query.length > 100) return errorResponse('검색어를 2자 이상 입력해 주세요.', 400);
@@ -363,6 +375,7 @@ async function api(request: Request, env: Env): Promise<Response> {
     if (parts.length === 4 && parts[3] === 'reviews' && request.method === 'POST' && /^\d+$/.test(parts[2])) return createReview(env, request, Number(parts[2]));
   }
   if (parts[1] === 'address' && parts[2] === 'search' && request.method === 'GET') return addressSearch(request);
+  if (parts[1] === 'chat' && request.method === 'POST') return chat(env, request);
   if (parts[1] === 'cart') {
     if (parts.length === 2 && request.method === 'GET') return cartResponse(env, request);
     if (parts.length === 2 && request.method === 'POST') return addCart(env, request);
