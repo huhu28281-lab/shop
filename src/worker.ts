@@ -3,9 +3,9 @@ import { compare, hash } from 'bcryptjs';
 interface Env {
   DB: D1Database;
   ASSETS: Fetcher;
+  AI: { run: (model: string, input: unknown) => Promise<unknown> };
   TOSS_CLIENT_KEY?: string;
   TOSS_SECRET_KEY?: string;
-  GEMINI_API_KEY?: string;
 }
 
 type Product = {
@@ -132,14 +132,12 @@ async function productDetail(env: Env, id: number): Promise<Response> {
 
 async function englishProductIntro(env: Env, request: Request, id: number): Promise<Response> {
   if (!sameOrigin(request)) return errorResponse('Invalid request origin.', 403);
-  if (!env.GEMINI_API_KEY) return errorResponse('Gemini API key is not configured.', 503);
+  if (!env.AI) return errorResponse('Workers AI is not configured.', 503);
   const product = await env.DB.prepare('SELECT name, description FROM products WHERE id = ? AND is_active = 1').bind(id).first<{ name: string; description: string }>();
   if (!product) return errorResponse('Product not found.', 404);
   try {
-    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': env.GEMINI_API_KEY }, body: JSON.stringify({ systemInstruction: { parts: [{ text: 'Write a plain, factual English product introduction in no more than three sentences. Use only the product name and description provided. Do not invent origin, ingredients, certifications, reviews, measurements, or other facts. Do not use bullet points.' }] }, contents: [{ parts: [{ text: `Product name: ${product.name}\nDescription: ${product.description}` }] }], generationConfig: { temperature: 0.2, maxOutputTokens: 120 } }) });
-    if (!response.ok) return errorResponse('English introduction was unavailable.', 502);
-    const result = await response.json() as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> };
-    const introduction = result.candidates?.[0]?.content?.parts?.map((part) => part.text ?? '').join('').trim();
+    const result = await env.AI.run('@cf/meta/llama-3.1-8b-instruct-fast', { messages: [{ role: 'system', content: 'Write a plain, factual English product introduction in no more than three sentences. Use only the product name and description provided. Do not invent origin, ingredients, certifications, reviews, measurements, or other facts. Do not use bullet points.' }, { role: 'user', content: `Product name: ${product.name}\nDescription: ${product.description}` }] }) as { response?: string };
+    const introduction = result?.response?.trim();
     if (!introduction) return errorResponse('English introduction was unavailable.', 502);
     return responseJson({ introduction });
   } catch { return errorResponse('English introduction was unavailable.', 502); }
