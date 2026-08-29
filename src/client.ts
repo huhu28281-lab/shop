@@ -2,6 +2,7 @@ type Product = { id: number; name: string; price: number; description: string; c
 type CartItem = Product & { qty: number; line_total: number; shoe_size?: number | null };
 type Cart = { items: CartItem[]; total: number };
 type Order = { id: string; total: number; status: string; created_at?: string; items: Array<CartItem & { product_id?: number }> };
+declare const TossPayments: ((clientKey: string) => any) | undefined;
 
 const app = document.querySelector<HTMLDivElement>('#app')!;
 const categories = ['전체', '잡화', '뷰티', '신발', '식품'];
@@ -101,7 +102,7 @@ async function renderForgotPassword(): Promise<void> {
 function bindHeaderLogout(): void { document.querySelector('#header-logout')?.addEventListener('click', async () => { await request('/api/auth/logout', { method: 'POST', body: '{}' }); currentUser = null; authLoaded = true; go('/'); }); }
 
 async function renderMyPage(): Promise<void> {
-  try { const data = await request<{ user: { name: string; email: string } }>('/api/auth/me'); currentUser = data.user; const orders = await request<{ orders: Array<{ id: string; total: number; status: string; created_at: string }> }>('/api/orders'); const orderRows = orders.orders.length ? orders.orders.map((order) => `<a class="order-history-row" href="/orders/${encodeURIComponent(order.id)}" data-route><span>${escapeHtml(order.id)}</span><span>${won(order.total)}</span><span>${escapeHtml(order.created_at)}</span></a>`).join('') : '<p class="cart-empty">주문 내역이 없습니다.</p>'; app.innerHTML = shell('', `<main class="page"><h1 class="page-heading">마이페이지</h1><p>${escapeHtml(data.user.name)} (${escapeHtml(data.user.email)})</p><h2 class="section-heading">주문 내역</h2><section class="order-history">${orderRows}</section></main>`); bindHeaderLogout(); } catch { go('/login'); }
+  try { const data = await request<{ user: { name: string; email: string } }>('/api/auth/me'); currentUser = data.user; const orders = await request<{ orders: Array<{ id: string; total: number; status: string; created_at: string }> }>('/api/orders'); const orderRows = orders.orders.length ? orders.orders.map((order) => `<a class="order-history-row" href="/orders/${encodeURIComponent(order.id)}" data-route><span>${escapeHtml(order.id)}</span><span>${won(order.total)}</span><span>${order.status === 'paid' ? '결제 완료' : '결제 대기'}</span><span>${escapeHtml(order.created_at)}</span></a>`).join('') : '<p class="cart-empty">주문 내역이 없습니다.</p>'; app.innerHTML = shell('', `<main class="page"><h1 class="page-heading">마이페이지</h1><p>${escapeHtml(data.user.name)} (${escapeHtml(data.user.email)})</p><h2 class="section-heading">주문 내역</h2><section class="order-history">${orderRows}</section></main>`); bindHeaderLogout(); } catch { go('/login'); }
 }
 
 async function updateCartCount(): Promise<void> {
@@ -185,7 +186,23 @@ async function renderCart(): Promise<void> {
   document.querySelectorAll<HTMLButtonElement>('[data-action="delete"]').forEach((button) => button.addEventListener('click', async () => { await request(`/api/cart/${button.dataset.id}`, { method: 'DELETE' }); await renderCart(); }));
   document.querySelectorAll<HTMLInputElement>('[data-action="quantity"]').forEach((input) => input.addEventListener('change', async () => { try { await request(`/api/cart/${input.dataset.id}`, { method: 'PATCH', body: JSON.stringify({ qty: Number(input.value) }) }); await renderCart(); } catch (error) { alert((error as Error).message); await renderCart(); } }));
   document.querySelectorAll<HTMLButtonElement>('[data-action="increase"], [data-action="decrease"]').forEach((button) => button.addEventListener('click', async () => { const item = cart.items.find((entry) => entry.id === Number(button.dataset.id)); if (!item) return; const qty = button.dataset.action === 'increase' ? item.qty + 1 : item.qty - 1; try { await request(`/api/cart/${item.id}`, { method: 'PATCH', body: JSON.stringify({ qty }) }); await renderCart(); } catch (error) { alert((error as Error).message); } }));
-  document.querySelector<HTMLButtonElement>('#order-button')?.addEventListener('click', async () => { try { const result = await request<{ order: Order }>('/api/orders', { method: 'POST', body: '{}' }); go(`/orders/${result.order.id}`); } catch (error) { document.querySelector('#cart-notice')!.textContent = (error as Error).message; } });
+  document.querySelector<HTMLButtonElement>('#order-button')?.addEventListener('click', async () => { try { const result = await request<{ order: Order }>('/api/orders', { method: 'POST', body: '{}' }); go(`/checkout/${result.order.id}`); } catch (error) { document.querySelector('#cart-notice')!.textContent = (error as Error).message; } });
+}
+
+async function renderCheckout(id: string): Promise<void> {
+  const data = await request<{ order: Order }>(`/api/orders/${encodeURIComponent(id)}`); const config = await request<{ clientKey: string }>('/api/payment/config');
+  app.innerHTML = shell('', `<main class="page"><h1 class="page-heading">결제하기</h1><p>주문 금액 ${won(data.order.total)}</p><div id="payment-method"></div><div id="agreement"></div><button class="primary-button" id="payment-submit" type="button">결제하기</button><p id="payment-notice" class="notice" role="status"></p></main>`);
+  if (!config.clientKey || !TossPayments) { document.querySelector('#payment-notice')!.textContent = '결제 테스트 키가 설정되지 않았습니다.'; return; }
+  const widgets = TossPayments(config.clientKey).widgets({ customerKey: currentUser?.email ?? 'ANONYMOUS' });
+  await widgets.setAmount({ currency: 'KRW', value: data.order.total });
+  await widgets.renderPaymentMethods({ selector: '#payment-method', variantKey: 'DEFAULT' });
+  await widgets.renderAgreement({ selector: '#agreement', variantKey: 'AGREEMENT' });
+  document.querySelector('#payment-submit')?.addEventListener('click', () => widgets.requestPayment({ orderId: data.order.id, orderName: `주문 ${data.order.id.slice(0, 8)}`, successUrl: `${location.origin}/payment/success`, failUrl: `${location.origin}/payment/fail` }));
+}
+
+async function renderPaymentResult(success: boolean): Promise<void> {
+  if (!success) { app.innerHTML = shell('', '<main class="page"><h1 class="page-heading">결제 실패</h1><p>결제가 완료되지 않았습니다.</p><a class="back-link" href="/cart" data-route>장바구니로 돌아가기</a></main>'); return; }
+  const params = new URLSearchParams(location.search); try { const result = await request<{ orderId: string }>('/api/payment/confirm', { method: 'POST', body: JSON.stringify({ paymentKey: params.get('paymentKey'), orderId: params.get('orderId'), amount: Number(params.get('amount')) }) }); go(`/orders/${result.orderId}`); } catch (error) { app.innerHTML = shell('', `<main class="page"><h1 class="page-heading">결제 승인 실패</h1><p class="error">${escapeHtml((error as Error).message)}</p></main>`); }
 }
 
 async function renderOrder(id: string): Promise<void> {
@@ -209,6 +226,9 @@ async function render(): Promise<void> {
     if (path === '/register') return await renderAuth('register');
     if (path === '/forgot-password') return await renderForgotPassword();
     if (path === '/mypage') return await renderMyPage();
+    const checkoutMatch = path.match(/^\/checkout\/([^/]+)$/); if (checkoutMatch) return await renderCheckout(checkoutMatch[1]);
+    if (path === '/payment/success') return await renderPaymentResult(true);
+    if (path === '/payment/fail') return await renderPaymentResult(false);
     const orderMatch = path.match(/^\/orders\/([^/]+)$/);
     if (orderMatch) { await renderOrder(orderMatch[1]); await updateCartCount(); return; }
     app.innerHTML = shell('', '<main class="page"><p class="error">페이지를 찾을 수 없습니다.</p></main>');

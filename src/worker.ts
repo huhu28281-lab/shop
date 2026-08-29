@@ -3,6 +3,8 @@ import { compare, hash } from 'bcryptjs';
 interface Env {
   DB: D1Database;
   ASSETS: Fetcher;
+  TOSS_CLIENT_KEY?: string;
+  TOSS_SECRET_KEY?: string;
 }
 
 type Product = {
@@ -262,6 +264,25 @@ async function listOrders(env: Env, request: Request): Promise<Response> {
   return responseJson({ orders: result.results });
 }
 
+async function paymentConfig(env: Env): Promise<Response> { return responseJson({ clientKey: env.TOSS_CLIENT_KEY ?? '' }); }
+
+async function confirmPayment(env: Env, request: Request): Promise<Response> {
+  if (!sameOrigin(request)) return errorResponse('Invalid request origin.', 403);
+  const auth = await requireAuth(request, env); if (auth instanceof Response) return auth;
+  if (!env.TOSS_SECRET_KEY) return errorResponse('Payment test secret is not configured.', 503);
+  const body = await jsonBody(request); const paymentKey = typeof body?.paymentKey === 'string' ? body.paymentKey : ''; const orderId = typeof body?.orderId === 'string' ? body.orderId : ''; const amount = integer(body?.amount);
+  if (!paymentKey || !orderId || amount === null) return errorResponse('Invalid payment confirmation request.', 400);
+  const order = await env.DB.prepare('SELECT id, total, status FROM orders WHERE id = ? AND session_id = ?').bind(orderId, auth.sessionId).first<{ id: string; total: number; status: string }>();
+  if (!order || order.status === 'paid') return errorResponse('Order is not payable.', 409);
+  if (order.total !== amount) return errorResponse('Payment amount mismatch.', 400);
+  const encoded = btoa(`${env.TOSS_SECRET_KEY}:`);
+  const tossResponse = await fetch('https://api.tosspayments.com/v1/payments/confirm', { method: 'POST', headers: { Authorization: `Basic ${encoded}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentKey, orderId, amount }) });
+  if (!tossResponse.ok) { const failure = await tossResponse.json().catch(() => ({})); return responseJson({ error: (failure as { message?: string }).message ?? 'Payment approval failed.' }, tossResponse.status); }
+  const payment = await tossResponse.json() as { method?: string };
+  await env.DB.prepare("UPDATE orders SET status = 'paid', payment_key = ?, payment_method = ?, payment_amount = ?, paid_at = CURRENT_TIMESTAMP WHERE id = ? AND session_id = ? AND status = 'pending'").bind(paymentKey, payment.method ?? null, amount, orderId, auth.sessionId).run();
+  return responseJson({ ok: true, orderId, status: 'paid' });
+}
+
 async function createReview(env: Env, request: Request, productId: number): Promise<Response> {
   if (!sameOrigin(request)) return errorResponse('Invalid request origin.', 403);
   const auth = await requireAuth(request, env); if (auth instanceof Response) return auth;
@@ -285,6 +306,10 @@ async function api(request: Request, env: Env): Promise<Response> {
     if (parts[2] === 'logout' && request.method === 'POST') return logout(env, request);
     if (parts[2] === 'me' && request.method === 'GET') return me(env, request);
     if (parts[2] === 'forgot-password' && request.method === 'POST') return forgotPassword(env, request);
+  }
+  if (parts[1] === 'payment') {
+    if (parts.length === 3 && parts[2] === 'config' && request.method === 'GET') return paymentConfig(env);
+    if (parts.length === 3 && parts[2] === 'confirm' && request.method === 'POST') return confirmPayment(env, request);
   }
   if (parts[1] === 'products') {
     if (parts.length === 2 && request.method === 'GET') return listProducts(env, url.searchParams.get('category'), url.searchParams.get('q'), url.searchParams.get('sort'));
