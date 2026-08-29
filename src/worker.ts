@@ -260,14 +260,26 @@ async function getOrder(env: Env, request: Request, orderId: string): Promise<Re
     FROM order_items oi LEFT JOIN products p ON p.id = oi.product_id
     WHERE oi.order_id = ? ORDER BY oi.id
   `).bind(orderId).all();
-  const shippingStatus = order.status === 'paid' ? 'in_transit' : 'awaiting_payment';
-  return responseJson({ order: { ...order, shipping_status: shippingStatus, current_location: order.status === 'paid' ? '가상 물류센터' : '배송 정보 대기', items: items.results } });
+  const shipping = virtualShipping(order.status, order.created_at);
+  return responseJson({ order: { ...order, shipping_status: shipping.status, shipping_label: shipping.label, current_location: shipping.location, items: items.results } });
+}
+
+function virtualShipping(paymentStatus: string, createdAt: string): { status: string; label: string; location: string } {
+  if (paymentStatus !== 'paid') return { status: 'awaiting_payment', label: '결제 후 배송이 시작됩니다', location: '배송 정보 대기' };
+  const stages = [
+    { status: 'preparing', label: '배송 준비 중', location: '가상 물류센터' },
+    { status: 'in_transit', label: '배송 중', location: '서울 허브 터미널' },
+    { status: 'out_for_delivery', label: '배송 중', location: '고객님 지역 배송기사' },
+    { status: 'delivered', label: '배송 완료', location: '배송지' },
+  ];
+  const elapsed = Math.max(0, Date.now() - Date.parse(createdAt));
+  return stages[Math.min(stages.length - 1, Math.floor(elapsed / 15000))];
 }
 
 async function listOrders(env: Env, request: Request): Promise<Response> {
   const auth = await requireAuth(request, env); if (auth instanceof Response) return auth;
   const result = await env.DB.prepare('SELECT id, total, status, created_at FROM orders WHERE session_id = ? ORDER BY created_at DESC').bind(auth.sessionId).all<{ id: string; total: number; status: string; created_at: string }>();
-  const orders = await Promise.all(result.results.map(async (order) => { const items = await env.DB.prepare('SELECT product_name, qty, shoe_size FROM order_items WHERE order_id = ? ORDER BY id').bind(order.id).all<{ product_name: string; qty: number; shoe_size?: number | null }>(); return { ...order, shipping_status: order.status === 'paid' ? 'preparing' : 'awaiting_payment', items: items.results }; }));
+  const orders = await Promise.all(result.results.map(async (order) => { const items = await env.DB.prepare('SELECT product_name, qty, shoe_size FROM order_items WHERE order_id = ? ORDER BY id').bind(order.id).all<{ product_name: string; qty: number; shoe_size?: number | null }>(); const shipping = virtualShipping(order.status, order.created_at); return { ...order, shipping_status: shipping.status, shipping_label: shipping.label, current_location: shipping.location, items: items.results }; }));
   return responseJson({ orders });
 }
 
