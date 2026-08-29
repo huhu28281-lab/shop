@@ -74,6 +74,9 @@ a { color: inherit; text-decoration: none; }
 .order-history { border-top: var(--line) solid var(--border); }
 .order-history-row { display: grid; grid-template-columns: 2fr 1fr 1.5fr; gap: 16px; padding: 16px 0; border-bottom: var(--line) solid var(--border); }
 .detail-price { color: var(--sale); font-size: 30px; font-weight: 700; border-top: var(--line) solid var(--border); padding-top: 20px; }
+.detail-extra { margin-top: 48px; border-top: var(--line) solid var(--border); border-bottom: var(--line) solid var(--border); padding: 24px 0 32px; }
+.detail-extra h2 { margin: 0 0 16px; font-size: 20px; }
+.detail-extra p { margin: 0; color: var(--text-secondary); line-height: 1.7; }
 .quantity-row { display: flex; align-items: center; gap: 16px; border-top: var(--line) solid var(--border); border-bottom: var(--line) solid var(--border); padding: 18px 0; margin: 24px 0; }
 .quantity-control { display: inline-flex; align-items: center; border: var(--line) solid var(--border); }
 .quantity-control button, .quantity-control input { width: 38px; height: 38px; border: 0; background: var(--surface); text-align: center; }
