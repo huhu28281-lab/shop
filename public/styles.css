@@ -112,6 +112,8 @@ a { color: inherit; text-decoration: none; }
 .map-modal h2 { margin-top: 0; }
 .map-modal iframe { display: block; width: 100%; height: 340px; border: var(--line) solid var(--border); }
 .map-close { float: right; border: 0; background: transparent; color: var(--text-secondary); cursor: pointer; }
+.postcode-layer { position: relative; width: min(520px, 94vw); max-width: 520px; min-height: 480px; padding: 24px; background: var(--surface); border: var(--line) solid var(--border); }
+.postcode-layer #postcode-embed { min-height: 430px; }
 .detail-price { color: var(--sale); font-size: 30px; font-weight: 700; border-top: var(--line) solid var(--border); padding-top: 20px; }
 .shoe-size-row { display: flex; align-items: center; gap: 16px; padding: 18px 0; border-top: var(--line) solid var(--border); }
 .shoe-size-row label { white-space: nowrap; }
