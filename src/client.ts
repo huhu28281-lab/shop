@@ -65,8 +65,9 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 function shell(active: string, content: string, showSearch = false): string {
   const lang = language(); const text = ui[lang];
   const search = showSearch ? `<form class="search-form" id="search-form" role="search"><input name="q" value="${escapeHtml(new URLSearchParams(location.search).get('q') ?? '')}" placeholder="${text.search}" aria-label="${text.search}" /><button type="submit" aria-label="${text.search}">⌕</button></form>` : '';
-  const account = currentUser ? `<span class="user-name">${escapeHtml(currentUser.name)}님</span><button type="button" class="header-action" id="header-logout">로그아웃</button><a href="/mypage" data-route>마이페이지</a>` : `<a href="/login" data-route>로그인</a><a href="/register" data-route>회원가입</a>`;
-  return `<header class="site-header"><nav class="site-nav" aria-label="${text.products}"><a class="home-link" href="/" data-route ${active === 'home' ? 'aria-current="page"' : ''}>홈</a><a class="cart-link" href="/cart" data-route ${active === 'cart' ? 'aria-current="page"' : ''}>${text.cart} <span class="cart-count" id="cart-count" aria-label="${cartQuantity}">${cartQuantity}</span></a></nav>${search}<div class="header-right"><div class="language-tabs-wrap">${languageTabs(lang)}</div><div class="account-links">${account}</div></div></header>${content}`;
+  const account = currentUser ? `<button type="button" class="header-action" id="header-logout">로그아웃</button><a href="/mypage" data-route>마이페이지</a>` : `<a href="/login" data-route>로그인</a><a href="/register" data-route>회원가입</a>`;
+  const userLabel = currentUser ? `<span class="user-name">${escapeHtml(currentUser.name)}님</span>` : '';
+  return `<header class="site-header"><nav class="site-nav" aria-label="${text.products}"><a class="home-link" href="/" data-route ${active === 'home' ? 'aria-current="page"' : ''}>홈</a><a class="cart-link" href="/cart" data-route ${active === 'cart' ? 'aria-current="page"' : ''}>${text.cart} <span class="cart-count" id="cart-count" aria-label="${cartQuantity}">${cartQuantity}</span></a></nav>${search}<div class="header-right"><div class="language-tabs-wrap">${languageTabs(lang)}${userLabel}</div><div class="account-links">${account}</div></div></header>${content}`;
 }
 
 function authForm(mode: 'login' | 'register'): string {
