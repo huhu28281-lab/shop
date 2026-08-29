@@ -224,6 +224,11 @@ async function deleteCart(env: Env, request: Request, productId: number): Promis
 }
 
 async function createOrder(env: Env, request: Request): Promise<Response> {
+  const body = await jsonBody(request);
+  const recipientName = typeof body?.recipientName === 'string' ? body.recipientName.trim() : '';
+  const recipientPhone = typeof body?.recipientPhone === 'string' ? body.recipientPhone.trim() : '';
+  const shippingAddress = typeof body?.shippingAddress === 'string' ? body.shippingAddress.trim() : '';
+  if (!recipientName || !recipientPhone || !shippingAddress || recipientName.length > 80 || recipientPhone.length > 30 || shippingAddress.length > 300) return errorResponse('배송지 정보를 모두 입력해 주세요.', 400);
   if (!sameOrigin(request)) return errorResponse('허용되지 않은 출처입니다.', 403);
   const auth = await requireAuth(request, env); if (auth instanceof Response) return auth;
   const items = await readCart(env, auth.sessionId);
@@ -232,7 +237,7 @@ async function createOrder(env: Env, request: Request): Promise<Response> {
   const total = items.reduce((sum, item) => sum + item.price * item.qty, 0);
   const orderId = crypto.randomUUID();
   const statements: D1PreparedStatement[] = [
-    env.DB.prepare('INSERT INTO orders (id, session_id, subtotal, shipping_fee, total, status) VALUES (?, ?, ?, 0, ?, \'pending\')').bind(orderId, auth.sessionId, total, total),
+    env.DB.prepare('INSERT INTO orders (id, session_id, subtotal, shipping_fee, total, status, recipient_name, recipient_phone, shipping_address) VALUES (?, ?, ?, 0, ?, \'pending\', ?, ?, ?)').bind(orderId, auth.sessionId, total, total, recipientName, recipientPhone, shippingAddress),
     ...items.map((item) => env.DB.prepare(
       'INSERT INTO order_items (order_id, product_id, product_name, qty, price, shoe_size) VALUES (?, ?, ?, ?, ?, ?)',
     ).bind(orderId, item.id, item.name, item.qty, item.price, item.shoe_size ?? null)),
@@ -246,8 +251,8 @@ async function createOrder(env: Env, request: Request): Promise<Response> {
 async function getOrder(env: Env, request: Request, orderId: string): Promise<Response> {
   const auth = await requireAuth(request, env); if (auth instanceof Response) return auth;
   const order = await env.DB.prepare(
-    'SELECT id, total, status, created_at FROM orders WHERE id = ? AND session_id = ?',
-  ).bind(orderId, auth.sessionId).first<{ id: string; total: number; status: string; created_at: string }>();
+    'SELECT id, total, status, created_at, recipient_name, recipient_phone, shipping_address FROM orders WHERE id = ? AND session_id = ?',
+  ).bind(orderId, auth.sessionId).first<{ id: string; total: number; status: string; created_at: string; recipient_name?: string; recipient_phone?: string; shipping_address?: string }>();
   if (!order) return errorResponse('주문을 찾을 수 없습니다.', 404);
   const items = await env.DB.prepare(`
     SELECT oi.product_id AS id, oi.product_name AS name, oi.price, oi.qty, oi.shoe_size,
@@ -255,7 +260,8 @@ async function getOrder(env: Env, request: Request, orderId: string): Promise<Re
     FROM order_items oi LEFT JOIN products p ON p.id = oi.product_id
     WHERE oi.order_id = ? ORDER BY oi.id
   `).bind(orderId).all();
-  return responseJson({ order: { ...order, items: items.results } });
+  const shippingStatus = order.status === 'paid' ? 'in_transit' : 'awaiting_payment';
+  return responseJson({ order: { ...order, shipping_status: shippingStatus, current_location: order.status === 'paid' ? '가상 물류센터' : '배송 정보 대기', items: items.results } });
 }
 
 async function listOrders(env: Env, request: Request): Promise<Response> {
