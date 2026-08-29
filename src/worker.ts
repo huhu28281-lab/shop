@@ -154,12 +154,13 @@ async function logout(env: Env, request: Request): Promise<Response> { const tok
 async function me(env: Env, request: Request): Promise<Response> { const auth = await requireAuth(request, env); if (auth instanceof Response) return auth; return responseJson({ user: { email: auth.email, name: auth.name } }); }
 async function forgotPassword(env: Env, request: Request): Promise<Response> {
   if (!sameOrigin(request)) return errorResponse('잘못된 요청 출처입니다.', 403);
-  const body = await jsonBody(request); const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : '';
-  if (!/^\S+@\S+\.\S+$/.test(email)) return errorResponse('올바른 이메일을 입력하세요.', 400);
-  // 토큰 생성·저장은 준비되어 있지만, 이메일 발송 공급자 연결 전에는 재설정 링크를 노출하지 않는다.
-  const user = await env.DB.prepare('SELECT id FROM users WHERE email = ?').bind(email).first<{ id: number }>();
-  if (user) { const token = crypto.randomUUID() + crypto.randomUUID(); await env.DB.prepare("INSERT INTO password_reset_tokens (token, user_id, expires_at) VALUES (?, ?, datetime('now', '+30 minutes'))").bind(token, user.id).run(); }
-  return errorResponse('비밀번호 재설정 이메일 발송 서비스가 아직 설정되지 않았습니다.', 503);
+  const body = await jsonBody(request); const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : ''; const name = typeof body?.name === 'string' ? body.name.trim() : '';
+  if (!/^\S+@\S+\.\S+$/.test(email) || !name) return errorResponse('이메일과 가입자 이름을 입력하세요.', 400);
+  const user = await env.DB.prepare('SELECT id FROM users WHERE email = ? AND name = ?').bind(email, name).first<{ id: number }>();
+  if (!user) return errorResponse('입력한 정보와 일치하는 회원을 찾을 수 없습니다.', 404);
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789'; const bytes = new Uint8Array(12); crypto.getRandomValues(bytes); let temporaryPassword = ''; for (const byte of bytes) temporaryPassword += chars[byte % chars.length];
+  await env.DB.prepare('UPDATE users SET password_hash = ? WHERE id = ?').bind(await hash(temporaryPassword, 12), user.id).run();
+  return responseJson({ temporaryPassword });
 }
 
 async function cartResponse(env: Env, request: Request): Promise<Response> {
