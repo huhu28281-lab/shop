@@ -99,27 +99,27 @@ async function listProducts(env: Env, category: string | null, queryText: string
   if (category && !CATEGORIES.includes(category as typeof CATEGORIES[number])) {
     return errorResponse('알 수 없는 분류입니다.', 400);
   }
-  const conditions = ['is_active = 1'];
+  const conditions = ['p.is_active = 1'];
   const values: string[] = [];
-  if (category) { conditions.push('category = ?'); values.push(category); }
-  if (queryText?.trim()) { conditions.push('(name LIKE ? OR description LIKE ? OR category LIKE ?)'); const term = `%${queryText.trim()}%`; values.push(term, term, term); }
-  const query = `SELECT id, name, price, description, category, image_url FROM products WHERE ${conditions.join(' AND ')} ORDER BY id`;
+  if (category) { conditions.push('cat.name = ?'); values.push(category); }
+  if (queryText?.trim()) { conditions.push('(p.name LIKE ? OR p.description LIKE ? OR cat.name LIKE ?)'); const term = `%${queryText.trim()}%`; values.push(term, term, term); }
+  const query = `SELECT p.id, p.name, p.price, p.description, cat.name AS category, p.image_url FROM products p JOIN categories cat ON cat.id = p.category_id WHERE ${conditions.join(' AND ')} ORDER BY p.id`;
   const result = await env.DB.prepare(query).bind(...values).all<Product>();
   return responseJson({ products: result.results });
 }
 
 async function productDetail(env: Env, id: number): Promise<Response> {
   const product = await env.DB.prepare(
-    'SELECT id, name, price, description, category, image_url FROM products WHERE id = ? AND is_active = 1',
+    'SELECT p.id, p.name, p.price, p.description, cat.name AS category, p.image_url FROM products p JOIN categories cat ON cat.id = p.category_id WHERE p.id = ? AND p.is_active = 1',
   ).bind(id).first<Product>();
   return product ? responseJson({ product }) : errorResponse('상품을 찾을 수 없습니다.', 404);
 }
 
 async function readCart(env: Env, sessionId: string): Promise<CartRow[]> {
   const result = await env.DB.prepare(`
-    SELECT p.id, p.name, p.price, p.description, p.category, p.image_url, p.is_active,
+    SELECT p.id, p.name, p.price, p.description, cat.name AS category, p.image_url, p.is_active,
            c.qty, (p.price * c.qty) AS line_total
-    FROM cart_items c JOIN products p ON p.id = c.product_id
+    FROM cart_items c JOIN products p ON p.id = c.product_id JOIN categories cat ON cat.id = p.category_id
     WHERE c.session_id = ? ORDER BY c.id
   `).bind(sessionId).all<CartRow>();
   return result.results;
@@ -231,6 +231,12 @@ async function getOrder(env: Env, request: Request, orderId: string): Promise<Re
   return responseJson({ order: { ...order, items: items.results } });
 }
 
+async function listOrders(env: Env, request: Request): Promise<Response> {
+  const auth = await requireAuth(request, env); if (auth instanceof Response) return auth;
+  const result = await env.DB.prepare('SELECT id, total, status, created_at FROM orders WHERE session_id = ? ORDER BY created_at DESC').bind(auth.sessionId).all();
+  return responseJson({ orders: result.results });
+}
+
 async function api(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
   const parts = url.pathname.split('/').filter(Boolean);
@@ -254,6 +260,7 @@ async function api(request: Request, env: Env): Promise<Response> {
     }
   }
   if (parts[1] === 'orders') {
+    if (parts.length === 2 && request.method === 'GET') return listOrders(env, request);
     if (parts.length === 2 && request.method === 'POST') return createOrder(env, request);
     if (parts.length === 3 && request.method === 'GET') return getOrder(env, request, parts[2]);
   }

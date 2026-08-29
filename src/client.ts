@@ -84,7 +84,7 @@ async function renderAuth(mode: 'login' | 'register'): Promise<void> {
 function bindHeaderLogout(): void { document.querySelector('#header-logout')?.addEventListener('click', async () => { await request('/api/auth/logout', { method: 'POST', body: '{}' }); currentUser = null; authLoaded = true; go('/'); }); }
 
 async function renderMyPage(): Promise<void> {
-  try { const data = await request<{ user: { name: string; email: string } }>('/api/auth/me'); currentUser = data.user; app.innerHTML = shell('', `<main class="page"><h1 class="page-heading">마이페이지</h1><p>${escapeHtml(data.user.name)} (${escapeHtml(data.user.email)})</p></main>`); bindHeaderLogout(); } catch { go('/login'); }
+  try { const data = await request<{ user: { name: string; email: string } }>('/api/auth/me'); currentUser = data.user; const orders = await request<{ orders: Array<{ id: string; total: number; status: string; created_at: string }> }>('/api/orders'); const orderRows = orders.orders.length ? orders.orders.map((order) => `<a class="order-history-row" href="/orders/${encodeURIComponent(order.id)}" data-route><span>${escapeHtml(order.id)}</span><span>${won(order.total)}</span><span>${escapeHtml(order.created_at)}</span></a>`).join('') : '<p class="cart-empty">주문 내역이 없습니다.</p>'; app.innerHTML = shell('', `<main class="page"><h1 class="page-heading">마이페이지</h1><p>${escapeHtml(data.user.name)} (${escapeHtml(data.user.email)})</p><h2 class="section-heading">주문 내역</h2><section class="order-history">${orderRows}</section></main>`); bindHeaderLogout(); } catch { go('/login'); }
 }
 
 async function updateCartCount(): Promise<void> {
