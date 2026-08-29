@@ -116,6 +116,11 @@ a { color: inherit; text-decoration: none; }
 .map-close { float: right; border: 0; background: transparent; color: var(--text-secondary); cursor: pointer; }
 .postcode-layer { position: relative; width: min(520px, 94vw); max-width: 520px; min-height: 480px; padding: 24px; background: var(--surface); border: var(--line) solid var(--border); }
 .postcode-layer #postcode-embed { min-height: 430px; }
+.address-search-form { display: grid; grid-template-columns: 1fr auto; gap: 8px; margin: 14px 0; }
+.address-search-form input { min-width: 0; border: var(--line) solid var(--border); padding: 10px; }
+.address-result { display: grid; grid-template-columns: 100px 1fr; gap: 4px 10px; width: 100%; padding: 12px 0; border: 0; border-top: var(--line) solid var(--border); background: transparent; text-align: left; cursor: pointer; }
+.address-result span, .address-result small { grid-column: 2; }
+.address-result small { color: var(--text-secondary); }
 .detail-price { color: var(--sale); font-size: 30px; font-weight: 700; border-top: var(--line) solid var(--border); padding-top: 20px; }
 .shoe-size-row { display: flex; align-items: center; gap: 16px; padding: 18px 0; border-top: var(--line) solid var(--border); }
 .shoe-size-row label { white-space: nowrap; }

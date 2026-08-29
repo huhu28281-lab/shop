@@ -143,6 +143,18 @@ async function englishProductIntro(env: Env, request: Request, id: number): Prom
   } catch { return errorResponse('English introduction was unavailable.', 502); }
 }
 
+async function addressSearch(request: Request): Promise<Response> {
+  const query = new URL(request.url).searchParams.get('q')?.trim() ?? '';
+  if (query.length < 2 || query.length > 100) return errorResponse('검색어를 2자 이상 입력해 주세요.', 400);
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&countrycodes=kr&limit=8&q=${encodeURIComponent(query)}`;
+    const upstream = await fetch(url, { headers: { 'User-Agent': 'shop-address-search/1.0' } });
+    if (!upstream.ok) return errorResponse('주소 검색을 잠시 사용할 수 없습니다.', 502);
+    const rows = await upstream.json() as Array<{ display_name: string; address?: { postcode?: string; road?: string; suburb?: string; city?: string; town?: string; county?: string; state?: string } }>;
+    return responseJson({ results: rows.map((row) => ({ postcode: row.address?.postcode ?? '', address: row.address?.road ?? row.address?.suburb ?? row.display_name, detail: [row.address?.town, row.address?.city, row.address?.county, row.address?.state].filter(Boolean).join(' '), display: row.display_name })) });
+  } catch { return errorResponse('주소 검색을 잠시 사용할 수 없습니다.', 502); }
+}
+
 async function readCart(env: Env, sessionId: string): Promise<CartRow[]> {
   const result = await env.DB.prepare(`
     SELECT p.id, p.name, p.price, p.description, cat.name AS category, p.image_url, p.is_active,
@@ -350,6 +362,7 @@ async function api(request: Request, env: Env): Promise<Response> {
     if (parts.length === 4 && parts[3] === 'english-intro' && request.method === 'POST' && /^\d+$/.test(parts[2])) return englishProductIntro(env, request, Number(parts[2]));
     if (parts.length === 4 && parts[3] === 'reviews' && request.method === 'POST' && /^\d+$/.test(parts[2])) return createReview(env, request, Number(parts[2]));
   }
+  if (parts[1] === 'address' && parts[2] === 'search' && request.method === 'GET') return addressSearch(request);
   if (parts[1] === 'cart') {
     if (parts.length === 2 && request.method === 'GET') return cartResponse(env, request);
     if (parts.length === 2 && request.method === 'POST') return addCart(env, request);

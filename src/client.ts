@@ -254,13 +254,22 @@ async function renderOrder(id: string): Promise<void> {
 
 document.addEventListener('click', async (event) => {
   const target = event.target as HTMLElement;
-  if (target.id !== 'postcode-search' || window.daum?.Postcode) return;
+  if (target.id !== 'postcode-search' || target.id === 'postcode-search' || window.daum?.Postcode) return;
   try {
     const api = await ensurePostcodeApi();
     const layer = document.createElement('div'); layer.className = 'modal-backdrop postcode-layer-backdrop'; layer.innerHTML = '<div class="postcode-layer" role="dialog" aria-modal="true"><button type="button" class="map-close">닫기</button><div id="postcode-embed"></div></div>'; document.body.appendChild(layer);
     new api.Postcode({ oncomplete: (data) => { document.querySelector<HTMLInputElement>('#postal-code')!.value = data.zonecode; document.querySelector<HTMLInputElement>('#base-address')!.value = data.roadAddress || data.jibunAddress; document.querySelector<HTMLInputElement>('#detail-address')?.focus(); layer.remove(); } }).embed(document.querySelector<HTMLElement>('#postcode-embed')!);
     layer.querySelector('.map-close')?.addEventListener('click', () => layer.remove());
   } catch { /* the inline listener displays the load error */ }
+});
+
+document.addEventListener('click', (event) => {
+  const target = event.target as HTMLElement;
+  if (target.id !== 'postcode-search') return;
+  const layer = document.createElement('div'); layer.className = 'modal-backdrop postcode-layer-backdrop'; layer.innerHTML = '<div class="postcode-layer" role="dialog" aria-modal="true" aria-label="우편번호 검색"><button type="button" class="map-close">닫기</button><h2>주소 검색</h2><form id="address-search-form" class="address-search-form"><input name="q" required minlength="2" placeholder="도로명 또는 지역을 입력하세요"><button class="primary-button" type="submit">검색</button></form><p id="address-search-status" class="notice"></p><div id="address-search-results"></div></div>'; document.body.appendChild(layer);
+  layer.querySelector('.map-close')?.addEventListener('click', () => layer.remove());
+  layer.querySelector<HTMLFormElement>('#address-search-form')?.addEventListener('submit', async (submitEvent) => { submitEvent.preventDefault(); const form = submitEvent.currentTarget as HTMLFormElement; const q = new FormData(form).get('q')?.toString().trim() ?? ''; const status = layer.querySelector('#address-search-status')!; const results = layer.querySelector('#address-search-results')!; status.textContent = '검색 중...'; results.innerHTML = ''; try { const data = await request<{ results: Array<{ postcode: string; address: string; detail: string; display: string }> }>(`/api/address/search?q=${encodeURIComponent(q)}`); status.textContent = data.results.length ? '' : '검색 결과가 없습니다.'; results.innerHTML = data.results.map((row, index) => `<button type="button" class="address-result" data-index="${index}"><strong>${escapeHtml(row.postcode || '우편번호 없음')}</strong><span>${escapeHtml(row.address)}</span><small>${escapeHtml(row.detail || row.display)}</small></button>`).join(''); results.querySelectorAll<HTMLButtonElement>('.address-result').forEach((button) => button.addEventListener('click', () => { const row = data.results[Number(button.dataset.index)]; document.querySelector<HTMLInputElement>('#postal-code')!.value = row.postcode; document.querySelector<HTMLInputElement>('#base-address')!.value = row.address; document.querySelector<HTMLInputElement>('#detail-address')?.focus(); layer.remove(); })); } catch (error) { status.textContent = (error as Error).message; } });
+  layer.addEventListener('click', (closeEvent) => { if (closeEvent.target === layer) layer.remove(); });
 });
 
 function go(path: string): void { history.pushState({}, '', path); void render(); }
