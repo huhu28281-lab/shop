@@ -15,7 +15,7 @@ type Product = {
   is_active?: number;
 };
 
-type CartRow = Product & { qty: number; line_total: number };
+type CartRow = Product & { qty: number; line_total: number; shoe_size?: number | null };
 
 const CATEGORIES = ['잡화', '뷰티', '신발', '식품'] as const;
 const SESSION_COOKIE = 'shop_session';
@@ -118,7 +118,7 @@ async function productDetail(env: Env, id: number): Promise<Response> {
 async function readCart(env: Env, sessionId: string): Promise<CartRow[]> {
   const result = await env.DB.prepare(`
     SELECT p.id, p.name, p.price, p.description, cat.name AS category, p.image_url, p.is_active,
-           c.qty, (p.price * c.qty) AS line_total
+           c.qty, c.shoe_size, (p.price * c.qty) AS line_total
     FROM cart_items c JOIN products p ON p.id = c.product_id JOIN categories cat ON cat.id = p.category_id
     WHERE c.session_id = ? ORDER BY c.id
   `).bind(sessionId).all<CartRow>();
@@ -176,15 +176,17 @@ async function addCart(env: Env, request: Request): Promise<Response> {
   const productId = integer(body?.productId);
   const qty = integer(body?.qty);
   if (productId === null || qty === null || qty < 1 || qty > 99) return errorResponse('수량은 1에서 99 사이여야 합니다.', 400);
-  const product = await env.DB.prepare('SELECT id FROM products WHERE id = ? AND is_active = 1').bind(productId).first<{ id: number }>();
+  const product = await env.DB.prepare('SELECT p.id, cat.name AS category FROM products p JOIN categories cat ON cat.id = p.category_id WHERE p.id = ? AND p.is_active = 1').bind(productId).first<{ id: number; category: string }>();
   if (!product) return errorResponse('상품을 찾을 수 없습니다.', 404);
   const auth = await requireAuth(request, env); if (auth instanceof Response) return auth;
+  const shoeSize = integer(body?.shoeSize);
+  if (product.category === '신발' && (shoeSize === null || shoeSize < 220 || shoeSize > 280)) return errorResponse('신발 사이즈를 선택하세요.', 400);
   const existing = await env.DB.prepare('SELECT qty FROM cart_items WHERE session_id = ? AND product_id = ?').bind(auth.sessionId, productId).first<{ qty: number }>();
   if ((existing?.qty ?? 0) + qty > 99) return errorResponse('상품 수량은 99개를 초과할 수 없습니다.', 409);
   if (existing) {
-    await env.DB.prepare('UPDATE cart_items SET qty = qty + ? WHERE session_id = ? AND product_id = ?').bind(qty, auth.sessionId, productId).run();
+    await env.DB.prepare('UPDATE cart_items SET qty = qty + ?, shoe_size = ? WHERE session_id = ? AND product_id = ?').bind(qty, shoeSize, auth.sessionId, productId).run();
   } else {
-    await env.DB.prepare('INSERT INTO cart_items (session_id, product_id, qty) VALUES (?, ?, ?)').bind(auth.sessionId, productId, qty).run();
+    await env.DB.prepare('INSERT INTO cart_items (session_id, product_id, qty, shoe_size) VALUES (?, ?, ?, ?)').bind(auth.sessionId, productId, qty, shoeSize).run();
   }
   return responseJson({ items: await readCart(env, auth.sessionId) });
 }
@@ -218,8 +220,8 @@ async function createOrder(env: Env, request: Request): Promise<Response> {
   const statements: D1PreparedStatement[] = [
     env.DB.prepare('INSERT INTO orders (id, session_id, total, status) VALUES (?, ?, ?, \'pending\')').bind(orderId, auth.sessionId, total),
     ...items.map((item) => env.DB.prepare(
-      'INSERT INTO order_items (order_id, product_id, product_name, qty, price) VALUES (?, ?, ?, ?, ?)',
-    ).bind(orderId, item.id, item.name, item.qty, item.price)),
+      'INSERT INTO order_items (order_id, product_id, product_name, qty, price, shoe_size) VALUES (?, ?, ?, ?, ?, ?)',
+    ).bind(orderId, item.id, item.name, item.qty, item.price, item.shoe_size ?? null)),
     env.DB.prepare('DELETE FROM cart_items WHERE session_id = ?').bind(auth.sessionId),
   ];
   await env.DB.batch(statements);
@@ -233,7 +235,7 @@ async function getOrder(env: Env, request: Request, orderId: string): Promise<Re
   ).bind(orderId, auth.sessionId).first<{ id: string; total: number; status: string; created_at: string }>();
   if (!order) return errorResponse('주문을 찾을 수 없습니다.', 404);
   const items = await env.DB.prepare(`
-    SELECT oi.product_id AS id, oi.product_name AS name, oi.price, oi.qty,
+    SELECT oi.product_id AS id, oi.product_name AS name, oi.price, oi.qty, oi.shoe_size,
            (oi.price * oi.qty) AS line_total, p.image_url
     FROM order_items oi LEFT JOIN products p ON p.id = oi.product_id
     WHERE oi.order_id = ? ORDER BY oi.id

@@ -79,6 +79,9 @@ a { color: inherit; text-decoration: none; }
 .order-history { border-top: var(--line) solid var(--border); }
 .order-history-row { display: grid; grid-template-columns: 2fr 1fr 1.5fr; gap: 16px; padding: 16px 0; border-bottom: var(--line) solid var(--border); }
 .detail-price { color: var(--sale); font-size: 30px; font-weight: 700; border-top: var(--line) solid var(--border); padding-top: 20px; }
+.shoe-size-row { display: flex; align-items: center; gap: 16px; padding: 18px 0; border-top: var(--line) solid var(--border); }
+.shoe-size-row label { white-space: nowrap; }
+.shoe-size-row select { min-width: 180px; height: 38px; padding: 0 10px; border: var(--line) solid var(--border); background: var(--surface); color: var(--text-primary); }
 .detail-extra { margin-top: 48px; border-top: var(--line) solid var(--border); border-bottom: var(--line) solid var(--border); padding: 24px 0 32px; }
 .detail-extra h2 { margin: 0 0 16px; font-size: 20px; }
 .detail-extra p { margin: 0; color: var(--text-secondary); line-height: 1.7; }
@@ -109,6 +112,7 @@ a { color: inherit; text-decoration: none; }
 .cart-item:first-child { border-top: 0; }
 .cart-item-image { width: 118px; height: 118px; object-fit: contain; }
 .cart-item-name { font-size: 16px; margin: 0 0 8px; }
+.cart-item-size { color: var(--text-primary); font-size: 13px; margin-bottom: 8px; }
 .cart-item-description { color: var(--text-secondary); margin-bottom: 14px; }
 .cart-item-price { font-size: 20px; font-weight: 700; }
 .cart-item-actions { display: flex; flex-direction: column; align-items: end; gap: 18px; }
