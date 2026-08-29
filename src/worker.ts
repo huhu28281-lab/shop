@@ -3,6 +3,7 @@ import { compare, hash } from 'bcryptjs';
 interface Env {
   DB: D1Database;
   ASSETS: Fetcher;
+  AI: { run: (model: string, input: unknown) => Promise<unknown> };
   TOSS_CLIENT_KEY?: string;
   TOSS_SECRET_KEY?: string;
 }
@@ -127,6 +128,19 @@ async function productDetail(env: Env, id: number): Promise<Response> {
   if (!product) return errorResponse('Product not found.', 404);
   const reviewRows = await env.DB.prepare('SELECT r.id, r.rating, r.content, r.created_at, u.name FROM reviews r JOIN users u ON u.id = r.user_id WHERE r.product_id = ? AND r.is_visible = 1 ORDER BY r.created_at DESC').bind(id).all();
   return responseJson({ product, reviews: reviewRows.results });
+}
+
+async function englishProductIntro(env: Env, request: Request, id: number): Promise<Response> {
+  if (!sameOrigin(request)) return errorResponse('Invalid request origin.', 403);
+  if (!env.AI) return errorResponse('Workers AI is not configured.', 503);
+  const product = await env.DB.prepare('SELECT name, description FROM products WHERE id = ? AND is_active = 1').bind(id).first<{ name: string; description: string }>();
+  if (!product) return errorResponse('Product not found.', 404);
+  try {
+    const result = await env.AI.run('@cf/meta/llama-3.1-8b-instruct-fast', { messages: [{ role: 'system', content: 'Write a plain, factual English product introduction in no more than three sentences. Use only the product name and description provided. Do not invent origin, ingredients, certifications, reviews, measurements, or other facts. Do not use bullet points.' }, { role: 'user', content: `Product name: ${product.name}\nDescription: ${product.description}` }] }) as { response?: string };
+    const introduction = result?.response?.trim();
+    if (!introduction) return errorResponse('English introduction was unavailable.', 502);
+    return responseJson({ introduction });
+  } catch { return errorResponse('English introduction was unavailable.', 502); }
 }
 
 async function readCart(env: Env, sessionId: string): Promise<CartRow[]> {
@@ -333,6 +347,7 @@ async function api(request: Request, env: Env): Promise<Response> {
   if (parts[1] === 'products') {
     if (parts.length === 2 && request.method === 'GET') return listProducts(env, url.searchParams.get('category'), url.searchParams.get('q'), url.searchParams.get('sort'));
     if (parts.length === 3 && request.method === 'GET' && /^\d+$/.test(parts[2])) return productDetail(env, Number(parts[2]));
+    if (parts.length === 4 && parts[3] === 'english-intro' && request.method === 'POST' && /^\d+$/.test(parts[2])) return englishProductIntro(env, request, Number(parts[2]));
     if (parts.length === 4 && parts[3] === 'reviews' && request.method === 'POST' && /^\d+$/.test(parts[2])) return createReview(env, request, Number(parts[2]));
   }
   if (parts[1] === 'cart') {
