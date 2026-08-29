@@ -13,6 +13,10 @@ type Product = {
   category: string;
   image_url: string;
   is_active?: number;
+  sales_qty?: number;
+  rating_avg?: number;
+  review_count?: number;
+  shipping_policy_id?: number;
 };
 
 type CartRow = Product & { qty: number; line_total: number; shoe_size?: number | null };
@@ -95,7 +99,7 @@ async function jsonBody(request: Request): Promise<Record<string, unknown> | nul
   }
 }
 
-async function listProducts(env: Env, category: string | null, queryText: string | null): Promise<Response> {
+async function listProducts(env: Env, category: string | null, queryText: string | null, sort: string | null): Promise<Response> {
   if (category && !CATEGORIES.includes(category as typeof CATEGORIES[number])) {
     return errorResponse('알 수 없는 분류입니다.', 400);
   }
@@ -103,16 +107,24 @@ async function listProducts(env: Env, category: string | null, queryText: string
   const values: string[] = [];
   if (category) { conditions.push('cat.name = ?'); values.push(category); }
   if (queryText?.trim()) { conditions.push('(p.name LIKE ? OR p.description LIKE ? OR cat.name LIKE ?)'); const term = `%${queryText.trim()}%`; values.push(term, term, term); }
-  const query = `SELECT p.id, p.name, p.price, p.description, cat.name AS category, p.image_url FROM products p JOIN categories cat ON cat.id = p.category_id WHERE ${conditions.join(' AND ')} ORDER BY p.id`;
+  const order = sort === 'price-low' ? 'p.price ASC, p.id ASC' : sort === 'price-high' ? 'p.price DESC, p.id ASC' : sort === 'popular' ? 'm.sales_qty DESC, p.id ASC' : 'p.id ASC';
+  const query = `SELECT p.id, p.name, p.price, p.description, cat.name AS category, p.image_url, m.sales_qty, m.rating_avg, m.review_count FROM products p JOIN categories cat ON cat.id = p.category_id LEFT JOIN product_metrics m ON m.product_id = p.id WHERE ${conditions.join(' AND ')} ORDER BY ${order}`;
   const result = await env.DB.prepare(query).bind(...values).all<Product>();
   return responseJson({ products: result.results });
 }
 
-async function productDetail(env: Env, id: number): Promise<Response> {
+async function productDetailLegacy(env: Env, id: number): Promise<Response> {
   const product = await env.DB.prepare(
-    'SELECT p.id, p.name, p.price, p.description, cat.name AS category, p.image_url FROM products p JOIN categories cat ON cat.id = p.category_id WHERE p.id = ? AND p.is_active = 1',
+    'SELECT p.id, p.name, p.price, p.description, cat.name AS category, p.image_url, p.shipping_policy_id, s.name AS shipping_name, s.fee AS shipping_fee, s.estimated_days FROM products p JOIN categories cat ON cat.id = p.category_id JOIN shipping_policies s ON s.id = p.shipping_policy_id WHERE p.id = ? AND p.is_active = 1',
   ).bind(id).first<Product>();
   return product ? responseJson({ product }) : errorResponse('상품을 찾을 수 없습니다.', 404);
+}
+
+async function productDetail(env: Env, id: number): Promise<Response> {
+  const product = await env.DB.prepare('SELECT p.id, p.name, p.price, p.description, cat.name AS category, p.image_url, p.shipping_policy_id, s.name AS shipping_name, s.fee AS shipping_fee, s.estimated_days FROM products p JOIN categories cat ON cat.id = p.category_id JOIN shipping_policies s ON s.id = p.shipping_policy_id WHERE p.id = ? AND p.is_active = 1').bind(id).first<Product>();
+  if (!product) return errorResponse('Product not found.', 404);
+  const reviewRows = await env.DB.prepare('SELECT r.id, r.rating, r.content, r.created_at, u.name FROM reviews r JOIN users u ON u.id = r.user_id WHERE r.product_id = ? AND r.is_visible = 1 ORDER BY r.created_at DESC').bind(id).all();
+  return responseJson({ product, reviews: reviewRows.results });
 }
 
 async function readCart(env: Env, sessionId: string): Promise<CartRow[]> {
@@ -218,11 +230,12 @@ async function createOrder(env: Env, request: Request): Promise<Response> {
   const total = items.reduce((sum, item) => sum + item.price * item.qty, 0);
   const orderId = crypto.randomUUID();
   const statements: D1PreparedStatement[] = [
-    env.DB.prepare('INSERT INTO orders (id, session_id, total, status) VALUES (?, ?, ?, \'pending\')').bind(orderId, auth.sessionId, total),
+    env.DB.prepare('INSERT INTO orders (id, session_id, subtotal, shipping_fee, total, status) VALUES (?, ?, ?, 0, ?, \'pending\')').bind(orderId, auth.sessionId, total, total),
     ...items.map((item) => env.DB.prepare(
       'INSERT INTO order_items (order_id, product_id, product_name, qty, price, shoe_size) VALUES (?, ?, ?, ?, ?, ?)',
     ).bind(orderId, item.id, item.name, item.qty, item.price, item.shoe_size ?? null)),
     env.DB.prepare('DELETE FROM cart_items WHERE session_id = ?').bind(auth.sessionId),
+    ...items.map((item) => env.DB.prepare('UPDATE product_metrics SET sales_qty = sales_qty + ?, order_count = order_count + 1, updated_at = CURRENT_TIMESTAMP WHERE product_id = ?').bind(item.qty, item.id)),
   ];
   await env.DB.batch(statements);
   return responseJson({ order: { id: orderId, total, status: 'pending', items } }, 201);
@@ -249,6 +262,20 @@ async function listOrders(env: Env, request: Request): Promise<Response> {
   return responseJson({ orders: result.results });
 }
 
+async function createReview(env: Env, request: Request, productId: number): Promise<Response> {
+  if (!sameOrigin(request)) return errorResponse('Invalid request origin.', 403);
+  const auth = await requireAuth(request, env); if (auth instanceof Response) return auth;
+  const body = await jsonBody(request); const rating = integer(body?.rating); const content = typeof body?.content === 'string' ? body.content.trim() : ''; let orderItemId = integer(body?.orderItemId);
+  if (rating === null || rating < 1 || rating > 5 || !content || content.length > 1000) return errorResponse('Rating and review text are required.', 400);
+  if (orderItemId === null) { const latest = await env.DB.prepare('SELECT oi.id FROM order_items oi JOIN orders o ON o.id = oi.order_id WHERE oi.product_id = ? AND o.session_id = ? ORDER BY o.created_at DESC LIMIT 1').bind(productId, auth.sessionId).first<{ id: number }>(); orderItemId = latest?.id ?? null; }
+  if (orderItemId === null) return errorResponse('You can review purchased products only.', 403);
+  const owned = await env.DB.prepare('SELECT oi.id FROM order_items oi JOIN orders o ON o.id = oi.order_id WHERE oi.id = ? AND oi.product_id = ? AND o.session_id = ?').bind(orderItemId, productId, auth.sessionId).first();
+  if (!owned) return errorResponse('You can review purchased products only.', 403);
+  try { await env.DB.prepare('INSERT INTO reviews (product_id, user_id, order_item_id, rating, content) VALUES (?, ?, ?, ?, ?)').bind(productId, auth.userId, orderItemId, rating, content).run(); } catch { return errorResponse('This order item already has a review.', 409); }
+  await env.DB.prepare('UPDATE product_metrics SET rating_avg = (SELECT AVG(rating) FROM reviews WHERE product_id = ? AND is_visible = 1), review_count = (SELECT COUNT(*) FROM reviews WHERE product_id = ? AND is_visible = 1), updated_at = CURRENT_TIMESTAMP WHERE product_id = ?').bind(productId, productId, productId).run();
+  return responseJson({ ok: true }, 201);
+}
+
 async function api(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
   const parts = url.pathname.split('/').filter(Boolean);
@@ -260,8 +287,9 @@ async function api(request: Request, env: Env): Promise<Response> {
     if (parts[2] === 'forgot-password' && request.method === 'POST') return forgotPassword(env, request);
   }
   if (parts[1] === 'products') {
-    if (parts.length === 2 && request.method === 'GET') return listProducts(env, url.searchParams.get('category'), url.searchParams.get('q'));
+    if (parts.length === 2 && request.method === 'GET') return listProducts(env, url.searchParams.get('category'), url.searchParams.get('q'), url.searchParams.get('sort'));
     if (parts.length === 3 && request.method === 'GET' && /^\d+$/.test(parts[2])) return productDetail(env, Number(parts[2]));
+    if (parts.length === 4 && parts[3] === 'reviews' && request.method === 'POST' && /^\d+$/.test(parts[2])) return createReview(env, request, Number(parts[2]));
   }
   if (parts[1] === 'cart') {
     if (parts.length === 2 && request.method === 'GET') return cartResponse(env, request);
