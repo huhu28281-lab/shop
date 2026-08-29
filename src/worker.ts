@@ -152,6 +152,15 @@ async function login(env: Env, request: Request): Promise<Response> {
 async function logout(env: Env, request: Request): Promise<Response> { const token = parseCookies(request)[AUTH_COOKIE]; if (token) await env.DB.prepare('DELETE FROM auth_sessions WHERE token = ?').bind(token).run(); return responseJson({ ok: true }, 200, { 'set-cookie': clearAuthCookie() }); }
 
 async function me(env: Env, request: Request): Promise<Response> { const auth = await requireAuth(request, env); if (auth instanceof Response) return auth; return responseJson({ user: { email: auth.email, name: auth.name } }); }
+async function forgotPassword(env: Env, request: Request): Promise<Response> {
+  if (!sameOrigin(request)) return errorResponse('잘못된 요청 출처입니다.', 403);
+  const body = await jsonBody(request); const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : '';
+  if (!/^\S+@\S+\.\S+$/.test(email)) return errorResponse('올바른 이메일을 입력하세요.', 400);
+  // 토큰 생성·저장은 준비되어 있지만, 이메일 발송 공급자 연결 전에는 재설정 링크를 노출하지 않는다.
+  const user = await env.DB.prepare('SELECT id FROM users WHERE email = ?').bind(email).first<{ id: number }>();
+  if (user) { const token = crypto.randomUUID() + crypto.randomUUID(); await env.DB.prepare("INSERT INTO password_reset_tokens (token, user_id, expires_at) VALUES (?, ?, datetime('now', '+30 minutes'))").bind(token, user.id).run(); }
+  return errorResponse('비밀번호 재설정 이메일 발송 서비스가 아직 설정되지 않았습니다.', 503);
+}
 
 async function cartResponse(env: Env, request: Request): Promise<Response> {
   const auth = await requireAuth(request, env); if (auth instanceof Response) return auth;
@@ -245,6 +254,7 @@ async function api(request: Request, env: Env): Promise<Response> {
     if (parts[2] === 'login' && request.method === 'POST') return login(env, request);
     if (parts[2] === 'logout' && request.method === 'POST') return logout(env, request);
     if (parts[2] === 'me' && request.method === 'GET') return me(env, request);
+    if (parts[2] === 'forgot-password' && request.method === 'POST') return forgotPassword(env, request);
   }
   if (parts[1] === 'products') {
     if (parts.length === 2 && request.method === 'GET') return listProducts(env, url.searchParams.get('category'), url.searchParams.get('q'));

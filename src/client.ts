@@ -72,13 +72,18 @@ function shell(active: string, content: string, showSearch = false): string {
 
 function authForm(mode: 'login' | 'register'): string {
   const register = mode === 'register';
-  return `<main class="page"><h1 class="page-heading">${register ? '회원가입' : '로그인'}</h1><form class="auth-form" id="auth-form"><label>이메일<input name="email" type="email" required autocomplete="email"></label>${register ? '<label>이름<input name="name" required autocomplete="name"></label>' : ''}<label>비밀번호<input name="password" type="password" minlength="8" required autocomplete="current-password"></label><button class="primary-button" type="submit">${register ? '가입하기' : '로그인'}</button><p id="auth-notice" class="notice" role="status"></p></form></main>`;
+  return `<main class="page"><h1 class="page-heading">${register ? '회원가입' : '로그인'}</h1><form class="auth-form" id="auth-form"><label>이메일<input name="email" type="email" required autocomplete="email"></label>${register ? '<label>이름<input name="name" required autocomplete="name"></label>' : ''}<label>비밀번호<input name="password" type="password" minlength="8" required autocomplete="current-password"></label><button class="primary-button" type="submit">${register ? '가입하기' : '로그인'}</button>${!register ? '<a class="back-link" href="/forgot-password" data-route>비밀번호 찾기</a>' : ''}<p id="auth-notice" class="notice" role="status"></p></form></main>`;
 }
 
 async function renderAuth(mode: 'login' | 'register'): Promise<void> {
   app.innerHTML = shell('', authForm(mode));
   bindHeaderLogout();
   document.querySelector<HTMLFormElement>('#auth-form')?.addEventListener('submit', async (event) => { event.preventDefault(); const form = event.currentTarget as HTMLFormElement; const body = Object.fromEntries(new FormData(form).entries()); try { await request(`/api/auth/${mode}`, { method: 'POST', body: JSON.stringify(body) }); authLoaded = false; await loadAuth(); go('/mypage'); } catch (error) { document.querySelector('#auth-notice')!.textContent = (error as Error).message; } });
+}
+
+async function renderForgotPassword(): Promise<void> {
+  app.innerHTML = shell('', `<main class="page"><h1 class="page-heading">비밀번호 찾기</h1><p>가입한 이메일을 입력하면 비밀번호 재설정 안내를 보내드립니다.</p><form class="auth-form" id="forgot-form"><label>이메일<input name="email" type="email" required autocomplete="email"></label><button class="primary-button" type="submit">재설정 안내 요청</button><p id="auth-notice" class="notice" role="status"></p></form></main>`);
+  document.querySelector<HTMLFormElement>('#forgot-form')?.addEventListener('submit', async (event) => { event.preventDefault(); const form = event.currentTarget as HTMLFormElement; try { await request('/api/auth/forgot-password', { method: 'POST', body: JSON.stringify(Object.fromEntries(new FormData(form).entries())) }); document.querySelector('#auth-notice')!.textContent = '입력한 이메일이 가입되어 있다면 재설정 안내를 보내드립니다.'; } catch (error) { document.querySelector('#auth-notice')!.textContent = (error as Error).message; } });
 }
 
 function bindHeaderLogout(): void { document.querySelector('#header-logout')?.addEventListener('click', async () => { await request('/api/auth/logout', { method: 'POST', body: '{}' }); currentUser = null; authLoaded = true; go('/'); }); }
@@ -185,6 +190,7 @@ async function render(): Promise<void> {
     if (path === '/cart') return await renderCart();
     if (path === '/login') return await renderAuth('login');
     if (path === '/register') return await renderAuth('register');
+    if (path === '/forgot-password') return await renderForgotPassword();
     if (path === '/mypage') return await renderMyPage();
     const orderMatch = path.match(/^\/orders\/([^/]+)$/);
     if (orderMatch) { await renderOrder(orderMatch[1]); await updateCartCount(); return; }
@@ -192,6 +198,6 @@ async function render(): Promise<void> {
   } catch (error) { app.innerHTML = shell('', `<main class="page"><p class="error">${escapeHtml((error as Error).message)}</p></main>`); }
 }
 
-document.addEventListener('click', (event) => { const languageButton = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-language]'); if (languageButton) { localStorage.setItem('shop-language', languageButton.dataset.language ?? 'ko'); void render(); return; } const target = (event.target as HTMLElement).closest<HTMLAnchorElement>('a[data-route]'); if (!target) return; event.preventDefault(); go(target.pathname + target.search); });
+document.addEventListener('click', (event) => { const logoutButton = (event.target as HTMLElement).closest<HTMLButtonElement>('#header-logout'); if (logoutButton) { void request('/api/auth/logout', { method: 'POST', body: '{}' }).then(() => { currentUser = null; authLoaded = true; go('/'); }); return; } const languageButton = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-language]'); if (languageButton) { localStorage.setItem('shop-language', languageButton.dataset.language ?? 'ko'); void render(); return; } const target = (event.target as HTMLElement).closest<HTMLAnchorElement>('a[data-route]'); if (!target) return; event.preventDefault(); go(target.pathname + target.search); });
 window.addEventListener('popstate', () => void render());
 void render();
