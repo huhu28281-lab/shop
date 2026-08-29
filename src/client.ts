@@ -60,6 +60,16 @@ function showCartChoice(): void {
   modal.addEventListener('click', (event) => { if (event.target === modal) modal.remove(); });
 }
 
+function ensurePostcodeApi(): Promise<PostcodeApi> {
+  if (window.daum?.Postcode) return Promise.resolve(window.daum);
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script'); script.src = 'https://t1.daumcdn.net/mapjsAPI/bundle/postcode/prod/postcode.v2.js'; script.async = true;
+    script.onload = () => window.daum?.Postcode ? resolve(window.daum) : reject(new Error('postcode api unavailable'));
+    script.onerror = () => reject(new Error('postcode script failed'));
+    document.head.appendChild(script);
+  });
+}
+
 function languageTabs(lang: Language): string {
   return `<div class="language-tabs" role="tablist" aria-label="Language"><button type="button" data-language="ko" class="${lang === 'ko' ? 'active' : ''}">한국어</button><button type="button" data-language="zh" class="${lang === 'zh' ? 'active' : ''}">中文</button><button type="button" data-language="en" class="${lang === 'en' ? 'active' : ''}">English</button></div>`;
 }
@@ -239,6 +249,17 @@ async function renderOrder(id: string): Promise<void> {
     window.setInterval(tick, 5000);
   }
 }
+
+document.addEventListener('click', async (event) => {
+  const target = event.target as HTMLElement;
+  if (target.id !== 'postcode-search' || window.daum?.Postcode) return;
+  try {
+    const api = await ensurePostcodeApi();
+    const layer = document.createElement('div'); layer.className = 'modal-backdrop postcode-layer-backdrop'; layer.innerHTML = '<div class="postcode-layer" role="dialog" aria-modal="true"><button type="button" class="map-close">닫기</button><div id="postcode-embed"></div></div>'; document.body.appendChild(layer);
+    new api.Postcode({ oncomplete: (data) => { document.querySelector<HTMLInputElement>('#postal-code')!.value = data.zonecode; document.querySelector<HTMLInputElement>('#base-address')!.value = data.roadAddress || data.jibunAddress; document.querySelector<HTMLInputElement>('#detail-address')?.focus(); layer.remove(); } }).embed(document.querySelector<HTMLElement>('#postcode-embed')!);
+    layer.querySelector('.map-close')?.addEventListener('click', () => layer.remove());
+  } catch { /* the inline listener displays the load error */ }
+});
 
 function go(path: string): void { history.pushState({}, '', path); void render(); }
 
