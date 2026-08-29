@@ -4,7 +4,7 @@ type Cart = { items: CartItem[]; total: number };
 type Order = { id: string; total: number; status: string; created_at?: string; items: Array<CartItem & { product_id?: number }> };
 declare const TossPayments: ((clientKey: string) => any) | undefined;
 type PostcodeApi = { Postcode: new (options: { oncomplete: (data: { zonecode: string; roadAddress: string; jibunAddress: string }) => void }) => { open: () => void; embed: (target: HTMLElement | string) => void } };
-declare global { interface Window { daum?: PostcodeApi } }
+interface Window { daum?: PostcodeApi }
 
 const app = document.querySelector<HTMLDivElement>('#app')!;
 const categories = ['전체', '잡화', '뷰티', '신발', '식품'];
