@@ -30,7 +30,7 @@ a { color: inherit; text-decoration: none; }
 .site-nav a[aria-current="page"] { color: var(--accent); font-weight: 700; }
 .cart-link { }
 .cart-count { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px; background: var(--accent); color: #fff; font-size: 11px; font-weight: 700; vertical-align: middle; }
-.search-form { display: flex; flex: 1; max-width: 600px; height: 38px; border: var(--line) solid var(--accent); margin-left: 8px; }
+.search-form { display: flex; flex: 1; max-width: 640px; height: 44px; border: 2px solid var(--accent); margin-left: 8px; }
 .search-form input { flex: 1; min-width: 0; border: 0; outline: 0; padding: 0 14px; color: var(--text-primary); }
 .search-form button { width: 42px; border: 0; background: var(--surface); color: var(--accent); font-size: 22px; cursor: pointer; }
 .language-tabs { display: flex; gap: 4px; margin-left: auto; white-space: nowrap; }
@@ -53,6 +53,11 @@ a { color: inherit; text-decoration: none; }
 .catalog-sidebar a:last-child { border-bottom: 0; }
 .catalog-sidebar a[aria-current="true"] { color: var(--accent); font-weight: 700; }
 .catalog-content { min-width: 0; }
+.home-banner { position: relative; min-height: 168px; overflow: hidden; display: flex; align-items: center; justify-content: space-between; margin-bottom: 28px; padding: 28px 40px; border: var(--line) solid var(--border); background: linear-gradient(110deg, var(--accent), var(--text-primary)); color: var(--surface); }
+.home-banner-kicker { font-size: 13px; opacity: .8; }
+.home-banner h1 { margin: 8px 0 6px; font-size: 34px; line-height: 1.2; }
+.home-banner p { margin: 0; font-size: 15px; opacity: .86; }
+.home-banner-orb { width: 220px; height: 220px; margin-right: 8%; border: 28px solid rgb(255 255 255 / 0.16); border-radius: 50%; box-shadow: 0 0 0 22px rgb(255 255 255 / 0.08), 0 0 0 52px rgb(255 255 255 / 0.05); }
 .breadcrumb { color: var(--text-secondary); font-size: 12px; margin-bottom: 16px; }
 .category-tabs { display: flex; gap: 24px; border-bottom: var(--line) solid var(--border); margin-bottom: 24px; padding-bottom: 12px; }
 .category-tabs a { color: var(--text-secondary); }
