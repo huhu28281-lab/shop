@@ -1,0 +1,16 @@
+UPDATE products SET description = '페가수스 러닝화에서 영감을 받은 메시업 디자인의 러닝화. 메쉬와 합성 소재가 사용된 P-6000 모델입니다.' WHERE id = 9;
+UPDATE products SET description = '재활용 폴리아미드 캔버스 소재의 르 플리아쥬 오리지널 파우치. 지퍼와 스냅 잠금 구조를 갖춘 접이식 미니 파우치입니다.' WHERE id = 10;
+UPDATE products SET description = '14K 화이트골드 스네이크 체인 형태의 여성용 금팔찌. 단독 또는 레이어드 스타일로 착용할 수 있는 디자인입니다.' WHERE id = 11;
+UPDATE products SET description = '모노그램 캔버스와 조절 가능한 스트랩을 사용한 올인 BB 버킷 스타일 백. 숄더백 또는 크로스바디로 활용할 수 있습니다.' WHERE id = 12;
+UPDATE products SET description = '2mm·2.5mm·3mm·4mm 옵션으로 안내된 14K·18K 컷팅 볼 체인 금팔찌입니다.' WHERE id = 13;
+UPDATE products SET description = '미국산 도브 센서티브바 뷰티바 비누 106g 6개 구성입니다.' WHERE id = 14;
+UPDATE products SET description = '트리코닉스 이시언 블랙 샴푸 500ml 제품입니다.' WHERE id = 15;
+UPDATE products SET description = '미국산 도브 센서티브 모이스처라이징 크림 뷰티바 무향 106g 6개 구성입니다.' WHERE id = 16;
+UPDATE products SET description = '미국산 도브 센서티브바 뷰티바 비누 모이스처라이징 크림 제품입니다.' WHERE id = 17;
+UPDATE products SET description = '일리윤 세라마이드 아토 바디로션 대용량 580ml와 300ml 구성입니다.' WHERE id = 18;
+UPDATE products SET description = '국산 흰다리새우 1kg 상품으로, 왕새우·생새우·활새우로 안내된 제품입니다.' WHERE id = 19;
+UPDATE products SET description = '국내산 백미 10kg 상품입니다. 삼광·추청·신동진·수향미·고시히카리·오대미 품종 선택지가 안내되어 있습니다.' WHERE id = 20;
+UPDATE products SET description = '임금님표 이천쌀 알찬미 상품으로 4kg·5kg·10kg 용량 선택지가 안내되어 있습니다.' WHERE id = 21;
+UPDATE products SET description = '복숭아 황도·백도 상품으로 딱딱이와 말랑이 및 2kg·4kg 용량 선택지가 안내되어 있습니다.' WHERE id = 22;
+UPDATE products SET description = '산과들에 한줌견과 하루견과 50봉 선물세트입니다.' WHERE id = 23;
+UPDATE products SET description = '남녀 공용으로 안내된 아이더 트레킹화·등산화. 사계절 워킹과 아웃도어 활동을 위한 신발입니다.' WHERE id = 24;
