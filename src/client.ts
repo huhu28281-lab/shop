@@ -101,11 +101,28 @@ function productCard(product: Product, lang: Language, hit: boolean): string {
   return `<article class="product-card"><a href="/products/${product.id}" data-route><div class="product-image-frame">${hit ? '<span class="hit-badge">HIT</span>' : ''}<img src="${product.image_url}" alt="${escapeHtml(copy.name)}" /></div><div class="product-category">${escapeHtml(copy.category)}</div><div class="product-name">${escapeHtml(copy.name)}</div><div class="product-price">${won(product.price)}</div>${descriptionMarkup(copy.description, 'product-description')}</a></article>`;
 }
 
+function rankingNumber(product: Product): number | null {
+  const match = product.description.match(/오늘의 판매순위\s*(\d+)위/);
+  return match ? Number(match[1]) : null;
+}
+
+function orderAllProducts(products: Product[]): Product[] {
+  const hits = products.filter((product) => rankingNumber(product) === 1);
+  const rest = products.filter((product) => rankingNumber(product) !== 1);
+  // 상품 ID를 기반으로 섞어 새로고침 때마다 순서가 바뀌지 않게 하면서 카테고리 뭉침을 줄인다.
+  const shuffled = [...rest].sort((a, b) => {
+    const score = (id: number) => (id * 9301 + 49297) % 233280;
+    return score(a.id) - score(b.id);
+  });
+  return [...hits.sort((a, b) => (rankingNumber(a) ?? 99) - (rankingNumber(b) ?? 99)), ...shuffled];
+}
+
 async function renderHome(category = new URLSearchParams(location.search).get('category') ?? ''): Promise<void> {
   const lang = language(); const text = ui[lang]; const q = new URLSearchParams(location.search).get('q') ?? '';
   const data = await request<{ products: Product[] }>(`/api/products${category ? `?category=${encodeURIComponent(category)}` : ''}`);
   const firstByCategory = new Set<string>();
-  const visible = data.products.filter((product) => { const copy = localized(product, lang); if (q.trim()) { const haystack = `${product.name} ${product.description} ${product.category} ${copy.name} ${copy.description} ${copy.category}`.toLocaleLowerCase(); if (!haystack.includes(q.trim().toLocaleLowerCase())) return false; } return true; });
+  const filtered = data.products.filter((product) => { const copy = localized(product, lang); if (q.trim()) { const haystack = `${product.name} ${product.description} ${product.category} ${copy.name} ${copy.description} ${copy.category}`.toLocaleLowerCase(); if (!haystack.includes(q.trim().toLocaleLowerCase())) return false; } return true; });
+  const visible = !category ? orderAllProducts(filtered) : filtered;
   const active = category || text.all;
   const tabs = categories.map((item) => {
     const query = item === '전체' ? '' : `?category=${encodeURIComponent(item)}`;
