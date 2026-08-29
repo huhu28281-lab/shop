@@ -6,6 +6,8 @@ type Order = { id: string; total: number; status: string; created_at?: string; i
 const app = document.querySelector<HTMLDivElement>('#app')!;
 const categories = ['전체', '잡화', '뷰티', '신발', '식품'];
 let cartQuantity = 0;
+let currentUser: { name: string; email: string } | null = null;
+let authLoaded = false;
 type Language = 'ko' | 'zh' | 'en';
 const language = (): Language => (localStorage.getItem('shop-language') as Language) || 'ko';
 const ui: Record<Language, Record<string, string>> = {
@@ -47,6 +49,12 @@ function languageTabs(lang: Language): string {
   return `<div class="language-tabs" role="tablist" aria-label="Language"><button type="button" data-language="ko" class="${lang === 'ko' ? 'active' : ''}">한국어</button><button type="button" data-language="zh" class="${lang === 'zh' ? 'active' : ''}">中文</button><button type="button" data-language="en" class="${lang === 'en' ? 'active' : ''}">English</button></div>`;
 }
 
+async function loadAuth(): Promise<void> {
+  if (authLoaded) return;
+  try { const data = await request<{ user: { name: string; email: string } }>('/api/auth/me'); currentUser = data.user; } catch { currentUser = null; }
+  authLoaded = true;
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(path, { ...options, headers: { 'content-type': 'application/json', ...(options?.headers ?? {}) } });
   const body = await response.json() as T & { error?: string };
@@ -57,7 +65,8 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 function shell(active: string, content: string, showSearch = false): string {
   const lang = language(); const text = ui[lang];
   const search = showSearch ? `<form class="search-form" id="search-form" role="search"><input name="q" value="${escapeHtml(new URLSearchParams(location.search).get('q') ?? '')}" placeholder="${text.search}" aria-label="${text.search}" /><button type="submit" aria-label="${text.search}">⌕</button></form>` : '';
-  return `<header class="site-header"><nav class="site-nav" aria-label="${text.products}"><a href="/" data-route ${active === 'home' ? 'aria-current="page"' : ''}>${text.products}</a><a class="cart-link" href="/cart" data-route ${active === 'cart' ? 'aria-current="page"' : ''}>${text.cart} <span class="cart-count" id="cart-count" aria-label="${cartQuantity}">${cartQuantity}</span></a><a href="/login" data-route>로그인</a><a href="/register" data-route>회원가입</a><a href="/mypage" data-route>마이페이지</a></nav>${search}${languageTabs(lang)}</header>${content}`;
+  const account = currentUser ? `<span class="user-name">${escapeHtml(currentUser.name)}님</span><button type="button" class="header-action" id="header-logout">로그아웃</button><a href="/mypage" data-route>마이페이지</a>` : `<a href="/login" data-route>로그인</a><a href="/register" data-route>회원가입</a>`;
+  return `<header class="site-header"><nav class="site-nav" aria-label="${text.products}"><a class="home-link" href="/" data-route ${active === 'home' ? 'aria-current="page"' : ''}>홈</a><a class="cart-link" href="/cart" data-route ${active === 'cart' ? 'aria-current="page"' : ''}>${text.cart} <span class="cart-count" id="cart-count" aria-label="${cartQuantity}">${cartQuantity}</span></a></nav>${search}<div class="header-right"><div class="language-tabs-wrap">${languageTabs(lang)}</div><div class="account-links">${account}</div></div></header>${content}`;
 }
 
 function authForm(mode: 'login' | 'register'): string {
@@ -67,11 +76,14 @@ function authForm(mode: 'login' | 'register'): string {
 
 async function renderAuth(mode: 'login' | 'register'): Promise<void> {
   app.innerHTML = shell('', authForm(mode));
-  document.querySelector<HTMLFormElement>('#auth-form')?.addEventListener('submit', async (event) => { event.preventDefault(); const form = event.currentTarget as HTMLFormElement; const body = Object.fromEntries(new FormData(form).entries()); try { await request(`/api/auth/${mode}`, { method: 'POST', body: JSON.stringify(body) }); go('/mypage'); } catch (error) { document.querySelector('#auth-notice')!.textContent = (error as Error).message; } });
+  bindHeaderLogout();
+  document.querySelector<HTMLFormElement>('#auth-form')?.addEventListener('submit', async (event) => { event.preventDefault(); const form = event.currentTarget as HTMLFormElement; const body = Object.fromEntries(new FormData(form).entries()); try { await request(`/api/auth/${mode}`, { method: 'POST', body: JSON.stringify(body) }); authLoaded = false; await loadAuth(); go('/mypage'); } catch (error) { document.querySelector('#auth-notice')!.textContent = (error as Error).message; } });
 }
 
+function bindHeaderLogout(): void { document.querySelector('#header-logout')?.addEventListener('click', async () => { await request('/api/auth/logout', { method: 'POST', body: '{}' }); currentUser = null; authLoaded = true; go('/'); }); }
+
 async function renderMyPage(): Promise<void> {
-  try { const data = await request<{ user: { name: string; email: string } }>('/api/auth/me'); app.innerHTML = shell('', `<main class="page"><h1 class="page-heading">마이페이지</h1><p>${escapeHtml(data.user.name)} (${escapeHtml(data.user.email)})</p><button class="primary-button" id="logout" type="button">로그아웃</button></main>`); document.querySelector('#logout')?.addEventListener('click', async () => { await request('/api/auth/logout', { method: 'POST', body: '{}' }); go('/'); }); } catch { go('/login'); }
+  try { const data = await request<{ user: { name: string; email: string } }>('/api/auth/me'); currentUser = data.user; app.innerHTML = shell('', `<main class="page"><h1 class="page-heading">마이페이지</h1><p>${escapeHtml(data.user.name)} (${escapeHtml(data.user.email)})</p></main>`); bindHeaderLogout(); } catch { go('/login'); }
 }
 
 async function updateCartCount(): Promise<void> {
@@ -146,6 +158,7 @@ function go(path: string): void { history.pushState({}, '', path); void render()
 
 async function render(): Promise<void> {
   try {
+    await loadAuth();
     const path = location.pathname;
     if (path === '/' || path === '') { await renderHome(); await updateCartCount(); return; }
     const productMatch = path.match(/^\/products\/(\d+)$/);
