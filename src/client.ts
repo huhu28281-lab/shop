@@ -57,7 +57,21 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 function shell(active: string, content: string, showSearch = false): string {
   const lang = language(); const text = ui[lang];
   const search = showSearch ? `<form class="search-form" id="search-form" role="search"><input name="q" value="${escapeHtml(new URLSearchParams(location.search).get('q') ?? '')}" placeholder="${text.search}" aria-label="${text.search}" /><button type="submit" aria-label="${text.search}">⌕</button></form>` : '';
-  return `<header class="site-header"><nav class="site-nav" aria-label="${text.products}"><a href="/" data-route ${active === 'home' ? 'aria-current="page"' : ''}>${text.products}</a><a class="cart-link" href="/cart" data-route ${active === 'cart' ? 'aria-current="page"' : ''}>${text.cart} <span class="cart-count" id="cart-count" aria-label="${cartQuantity}">${cartQuantity}</span></a></nav>${search}${languageTabs(lang)}</header>${content}`;
+  return `<header class="site-header"><nav class="site-nav" aria-label="${text.products}"><a href="/" data-route ${active === 'home' ? 'aria-current="page"' : ''}>${text.products}</a><a class="cart-link" href="/cart" data-route ${active === 'cart' ? 'aria-current="page"' : ''}>${text.cart} <span class="cart-count" id="cart-count" aria-label="${cartQuantity}">${cartQuantity}</span></a><a href="/login" data-route>로그인</a><a href="/register" data-route>회원가입</a><a href="/mypage" data-route>마이페이지</a></nav>${search}${languageTabs(lang)}</header>${content}`;
+}
+
+function authForm(mode: 'login' | 'register'): string {
+  const register = mode === 'register';
+  return `<main class="page"><h1 class="page-heading">${register ? '회원가입' : '로그인'}</h1><form class="auth-form" id="auth-form"><label>이메일<input name="email" type="email" required autocomplete="email"></label>${register ? '<label>이름<input name="name" required autocomplete="name"></label>' : ''}<label>비밀번호<input name="password" type="password" minlength="8" required autocomplete="current-password"></label><button class="primary-button" type="submit">${register ? '가입하기' : '로그인'}</button><p id="auth-notice" class="notice" role="status"></p></form></main>`;
+}
+
+async function renderAuth(mode: 'login' | 'register'): Promise<void> {
+  app.innerHTML = shell('', authForm(mode));
+  document.querySelector<HTMLFormElement>('#auth-form')?.addEventListener('submit', async (event) => { event.preventDefault(); const form = event.currentTarget as HTMLFormElement; const body = Object.fromEntries(new FormData(form).entries()); try { await request(`/api/auth/${mode}`, { method: 'POST', body: JSON.stringify(body) }); go('/mypage'); } catch (error) { document.querySelector('#auth-notice')!.textContent = (error as Error).message; } });
+}
+
+async function renderMyPage(): Promise<void> {
+  try { const data = await request<{ user: { name: string; email: string } }>('/api/auth/me'); app.innerHTML = shell('', `<main class="page"><h1 class="page-heading">마이페이지</h1><p>${escapeHtml(data.user.name)} (${escapeHtml(data.user.email)})</p><button class="primary-button" id="logout" type="button">로그아웃</button></main>`); document.querySelector('#logout')?.addEventListener('click', async () => { await request('/api/auth/logout', { method: 'POST', body: '{}' }); go('/'); }); } catch { go('/login'); }
 }
 
 async function updateCartCount(): Promise<void> {
@@ -137,6 +151,9 @@ async function render(): Promise<void> {
     const productMatch = path.match(/^\/products\/(\d+)$/);
     if (productMatch) { await renderProduct(Number(productMatch[1])); await updateCartCount(); return; }
     if (path === '/cart') return await renderCart();
+    if (path === '/login') return await renderAuth('login');
+    if (path === '/register') return await renderAuth('register');
+    if (path === '/mypage') return await renderMyPage();
     const orderMatch = path.match(/^\/orders\/([^/]+)$/);
     if (orderMatch) { await renderOrder(orderMatch[1]); await updateCartCount(); return; }
     app.innerHTML = shell('', '<main class="page"><p class="error">페이지를 찾을 수 없습니다.</p></main>');
