@@ -261,7 +261,7 @@ async function getOrder(env: Env, request: Request, orderId: string): Promise<Re
 async function listOrders(env: Env, request: Request): Promise<Response> {
   const auth = await requireAuth(request, env); if (auth instanceof Response) return auth;
   const result = await env.DB.prepare('SELECT id, total, status, created_at FROM orders WHERE session_id = ? ORDER BY created_at DESC').bind(auth.sessionId).all<{ id: string; total: number; status: string; created_at: string }>();
-  const orders = await Promise.all(result.results.map(async (order) => { const items = await env.DB.prepare('SELECT product_name, qty, shoe_size FROM order_items WHERE order_id = ? ORDER BY id').bind(order.id).all<{ product_name: string; qty: number; shoe_size?: number | null }>(); return { ...order, items: items.results }; }));
+  const orders = await Promise.all(result.results.map(async (order) => { const items = await env.DB.prepare('SELECT product_name, qty, shoe_size FROM order_items WHERE order_id = ? ORDER BY id').bind(order.id).all<{ product_name: string; qty: number; shoe_size?: number | null }>(); return { ...order, shipping_status: order.status === 'paid' ? 'preparing' : 'awaiting_payment', items: items.results }; }));
   return responseJson({ orders });
 }
 

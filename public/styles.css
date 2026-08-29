@@ -89,8 +89,12 @@ a { color: inherit; text-decoration: none; }
 .auth-form input { padding: 12px; border: 1px solid var(--border); font: inherit; }
 .section-heading { margin: 40px 0 16px; font-size: 20px; }
 .order-history { border-top: var(--line) solid var(--border); }
-.order-history-row { display: grid; grid-template-columns: 2fr 1fr 1fr 1.5fr; gap: 16px; padding: 16px 0; border-bottom: var(--line) solid var(--border); }
+.order-history-row { display: grid; grid-template-columns: 2fr 1fr 1fr 1.2fr 1.5fr; gap: 16px; padding: 16px 0; border-bottom: var(--line) solid var(--border); }
 .order-history-products { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.order-shipping-status { color: var(--accent); }
+.shipping-check { border-top: var(--line) solid var(--border); }
+.shipping-check-row { display: grid; grid-template-columns: 1fr 2fr 1.5fr; gap: 16px; align-items: center; padding: 16px 0; border-bottom: var(--line) solid var(--border); }
+.shipping-check-row strong { color: var(--text); font-weight: 600; }
 .detail-price { color: var(--sale); font-size: 30px; font-weight: 700; border-top: var(--line) solid var(--border); padding-top: 20px; }
 .shoe-size-row { display: flex; align-items: center; gap: 16px; padding: 18px 0; border-top: var(--line) solid var(--border); }
 .shoe-size-row label { white-space: nowrap; }
