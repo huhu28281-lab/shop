@@ -79,7 +79,7 @@ async function ensureSession(request: Request, env: Env): Promise<{ id: string; 
 
 function sameOrigin(request: Request): boolean {
   const origin = request.headers.get('origin');
-  return !origin || origin === new URL(request.url).origin;
+  return origin === new URL(request.url).origin;
 }
 
 function withCookie(response: Response, cookie?: string): Response {
@@ -96,7 +96,7 @@ function integer(value: unknown): number | null {
 async function jsonBody(request: Request): Promise<Record<string, unknown> | null> {
   try {
     const body = await request.json();
-    return body && typeof body === 'object' ? body as Record<string, unknown> : null;
+    return body && typeof body === 'object' && !Array.isArray(body) ? body as Record<string, unknown> : null;
   } catch {
     return null;
   }
@@ -188,7 +188,7 @@ async function createAuthSession(env: Env, userId: number): Promise<{ token: str
 async function register(env: Env, request: Request): Promise<Response> {
   if (!sameOrigin(request)) return errorResponse('잘못된 요청 출처입니다.', 403);
   const body = await jsonBody(request); const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : ''; const name = typeof body?.name === 'string' ? body.name.trim() : ''; const password = typeof body?.password === 'string' ? body.password : '';
-  if (!/^\S+@\S+\.\S+$/.test(email) || !name || password.length < 8) return errorResponse('이메일, 이름과 8자 이상의 비밀번호를 입력하세요.', 400);
+  if (!/^\S+@\S+\.\S+$/.test(email) || !name || name.length > 80 || password.length < 8 || password.length > 128) return errorResponse('이메일, 이름과 8자 이상 128자 이하의 비밀번호를 입력하세요.', 400);
   const passwordHash = await hash(password, 12);
   try { const result = await env.DB.prepare('INSERT INTO users (email, name, password_hash) VALUES (?, ?, ?)').bind(email, name, passwordHash).run(); const userId = Number(result.meta.last_row_id); const session = await createAuthSession(env, userId); return responseJson({ user: { email, name } }, 201, { 'set-cookie': authCookie(session.token) }); } catch { return errorResponse('이미 가입된 이메일입니다.', 409); }
 }
@@ -201,13 +201,13 @@ async function login(env: Env, request: Request): Promise<Response> {
   const session = await createAuthSession(env, user.id); return responseJson({ user: { email: user.email, name: user.name } }, 200, { 'set-cookie': authCookie(session.token) });
 }
 
-async function logout(env: Env, request: Request): Promise<Response> { const token = parseCookies(request)[AUTH_COOKIE]; if (token) await env.DB.prepare('DELETE FROM auth_sessions WHERE token = ?').bind(token).run(); return responseJson({ ok: true }, 200, { 'set-cookie': clearAuthCookie() }); }
+async function logout(env: Env, request: Request): Promise<Response> { if (!sameOrigin(request)) return errorResponse('Invalid request origin.', 403); const token = parseCookies(request)[AUTH_COOKIE]; if (token) await env.DB.prepare('DELETE FROM auth_sessions WHERE token = ?').bind(token).run(); return responseJson({ ok: true }, 200, { 'set-cookie': clearAuthCookie() }); }
 
 async function me(env: Env, request: Request): Promise<Response> { const auth = await requireAuth(request, env); if (auth instanceof Response) return auth; return responseJson({ user: { email: auth.email, name: auth.name } }); }
 async function forgotPassword(env: Env, request: Request): Promise<Response> {
   if (!sameOrigin(request)) return errorResponse('잘못된 요청 출처입니다.', 403);
   const body = await jsonBody(request); const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : ''; const name = typeof body?.name === 'string' ? body.name.trim() : '';
-  if (!/^\S+@\S+\.\S+$/.test(email) || !name) return errorResponse('이메일과 가입자 이름을 입력하세요.', 400);
+  if (!/^\S+@\S+\.\S+$/.test(email) || !name || name.length > 80) return errorResponse('이메일과 가입자 이름을 입력하세요.', 400);
   const user = await env.DB.prepare('SELECT id FROM users WHERE email = ? AND name = ?').bind(email, name).first<{ id: number }>();
   if (!user) return errorResponse('입력한 정보와 일치하는 회원을 찾을 수 없습니다.', 404);
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789'; const bytes = new Uint8Array(12); crypto.getRandomValues(bytes); let temporaryPassword = ''; for (const byte of bytes) temporaryPassword += chars[byte % chars.length];
